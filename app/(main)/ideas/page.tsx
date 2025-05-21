@@ -34,7 +34,6 @@ import {
   ArrowRightCircle,
   Scale,
   Zap,
-  Link,
 } from "lucide-react"; // Added Scale, Zap icons
 import { Skeleton } from "@/components/ui/skeleton";
 import { format, addDays } from "date-fns";
@@ -47,6 +46,7 @@ import {
 } from "@/components/ui/select"; // Import Select components
 import { Label } from "@/components/ui/label"; // Import Label
 import { Badge } from "@/components/ui/badge";
+import Link from "next/link";
 
 export default function IdeasPage() {
   const router = useRouter();

@@ -33,7 +33,7 @@ import {
   CheckCircle2,
   RotateCcw,
   Search,
-} from "lucide-react"; // Added Search icon
+} from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -41,9 +41,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Input } from "@/components/ui/input"; // Import Input component
+import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { useConfirmDialog } from "@/lib/hooks/useConfirmProvider";
+import Fuse from "fuse.js"; // Import Fuse.js
 
 export default function DashboardPage() {
   const [goals, setGoals] = useState<IGoal[]>([]);
@@ -58,10 +59,18 @@ export default function DashboardPage() {
   const [filterPriority, setFilterPriority] = useState<string>("all"); // 'all', 'low', 'medium', 'high'
   const [sortBy, setSortBy] = useState<string>("createdAt"); // 'title', 'targetDate', 'createdAt'
   const [sortOrder, setSortOrder] = useState<string>("desc"); // 'asc', 'desc'
-  const [searchQuery, setSearchQuery] = useState<string>(""); // New state for search query
+  const [searchQuery, setSearchQuery] = useState<string>(""); // State for search query
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const confirm = useConfirmDialog();
+
+  // Fuse.js options for fuzzy searching
+  const fuseOptions = {
+    keys: ["title", "description", "category"], // Fields to search in
+    threshold: 0.3, // Fuzziness threshold (0.0 = exact match, 1.0 = match anything)
+    includeScore: true, // Include score in results (optional, for debugging/ranking)
+  };
+  const fuse = new Fuse(goals, fuseOptions); // Initialize Fuse with all goals
 
   // Function to fetch goals from IndexedDB
   const fetchGoals = async () => {
@@ -85,33 +94,33 @@ export default function DashboardPage() {
   }, []);
 
   // Filter and sort goals based on state
-  const filteredAndSortedGoals = goals
-    .filter((goal) => {
-      // Apply status filter
+  const filteredAndSortedGoals = (() => {
+    let currentGoals = goals;
+
+    // Apply search query filter using Fuse.js
+    if (searchQuery.trim() !== "") {
+      const searchResults = fuse.search(searchQuery.trim());
+      currentGoals = searchResults.map((result) => result.item);
+    }
+
+    // Apply status filter
+    currentGoals = currentGoals.filter((goal) => {
       if (filterStatus !== "all" && goal.status !== filterStatus) {
         return false;
       }
-      // Apply priority filter
+      return true;
+    });
+
+    // Apply priority filter
+    currentGoals = currentGoals.filter((goal) => {
       if (filterPriority !== "all" && goal.priority !== filterPriority) {
         return false;
       }
-      // Apply search query filter (case-insensitive)
-      if (searchQuery.trim() !== "") {
-        const lowerCaseQuery = searchQuery.toLowerCase();
-        const matchesTitle = goal.title.toLowerCase().includes(lowerCaseQuery);
-        const matchesDescription = goal.description
-          ?.toLowerCase()
-          .includes(lowerCaseQuery);
-        const matchesCategory = goal.category
-          ?.toLowerCase()
-          .includes(lowerCaseQuery);
-        if (!matchesTitle && !matchesDescription && !matchesCategory) {
-          return false;
-        }
-      }
       return true;
-    })
-    .sort((a, b) => {
+    });
+
+    // Apply sorting
+    return currentGoals.sort((a, b) => {
       let comparison = 0;
       if (sortBy === "title") {
         comparison = a.title.localeCompare(b.title);
@@ -124,6 +133,7 @@ export default function DashboardPage() {
 
       return sortOrder === "asc" ? comparison : -comparison;
     });
+  })(); // Use an IIFE for immediate execution and cleaner derived state
 
   const handleExportData = () => {
     startExportTransition(async () => {
@@ -361,107 +371,109 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Filtering and Sorting Controls */}
-      <div className="flex flex-col md:flex-row items-center justify-between gap-4 p-4 border rounded-lg bg-card text-card-foreground shadow-sm">
-        <div className="flex items-center gap-2 w-full md:w-auto">
-          <label
-            htmlFor="filter-status"
-            className="text-sm font-medium whitespace-nowrap"
-          >
-            Filter Status:
-          </label>
-          <Select
-            value={filterStatus}
-            onValueChange={setFilterStatus}
-            disabled={loading || error !== null}
-          >
-            <SelectTrigger id="filter-status" className="w-[180px]">
-              <SelectValue placeholder="All Statuses" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Statuses</SelectItem>
-              <SelectItem value="active">Active</SelectItem>
-              <SelectItem value="completed">Completed</SelectItem>
-              <SelectItem value="archived">Archived</SelectItem>
-            </SelectContent>
-          </Select>
+      {/* Filtering, Sorting, and Search Controls */}
+      <div className="flex flex-col gap-4 p-4 border rounded-lg bg-card text-card-foreground shadow-sm">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="flex items-center gap-2">
+            <label
+              htmlFor="filter-status"
+              className="text-sm font-medium whitespace-nowrap"
+            >
+              Status:
+            </label>
+            <Select
+              value={filterStatus}
+              onValueChange={setFilterStatus}
+              disabled={loading || error !== null}
+            >
+              <SelectTrigger id="filter-status" className="w-full">
+                <SelectValue placeholder="All Statuses" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Statuses</SelectItem>
+                <SelectItem value="active">Active</SelectItem>
+                <SelectItem value="completed">Completed</SelectItem>
+                <SelectItem value="archived">Archived</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <label
+              htmlFor="filter-priority"
+              className="text-sm font-medium whitespace-nowrap"
+            >
+              Priority:
+            </label>
+            <Select
+              value={filterPriority}
+              onValueChange={setFilterPriority}
+              disabled={loading || error !== null}
+            >
+              <SelectTrigger id="filter-priority" className="w-full">
+                <SelectValue placeholder="All Priorities" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Priorities</SelectItem>
+                <SelectItem value="low">Low</SelectItem>
+                <SelectItem value="medium">Medium</SelectItem>
+                <SelectItem value="high">High</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <label
+              htmlFor="sort-by"
+              className="text-sm font-medium whitespace-nowrap"
+            >
+              Sort By:
+            </label>
+            <Select
+              value={sortBy}
+              onValueChange={setSortBy}
+              disabled={loading || error !== null}
+            >
+              <SelectTrigger id="sort-by" className="w-full">
+                <SelectValue placeholder="Sort By" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="title">Title</SelectItem>
+                <SelectItem value="targetDate">Target Date</SelectItem>
+                <SelectItem value="createdAt">Created Date</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <label
+              htmlFor="sort-order"
+              className="text-sm font-medium whitespace-nowrap"
+            >
+              Order:
+            </label>
+            <Select
+              value={sortOrder}
+              onValueChange={setSortOrder}
+              disabled={loading || error !== null}
+            >
+              <SelectTrigger id="sort-order" className="w-full">
+                <SelectValue placeholder="Order" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="asc">Ascending</SelectItem>
+                <SelectItem value="desc">Descending</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </div>
 
-        <div className="flex items-center gap-2 w-full md:w-auto">
-          <label
-            htmlFor="filter-priority"
-            className="text-sm font-medium whitespace-nowrap"
-          >
-            Filter Priority:
-          </label>
-          <Select
-            value={filterPriority}
-            onValueChange={setFilterPriority}
-            disabled={loading || error !== null}
-          >
-            <SelectTrigger id="filter-priority" className="w-[180px]">
-              <SelectValue placeholder="All Priorities" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Priorities</SelectItem>
-              <SelectItem value="low">Low</SelectItem>
-              <SelectItem value="medium">Medium</SelectItem>
-              <SelectItem value="high">High</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-
-        <div className="flex items-center gap-2 w-full md:w-auto">
-          <label
-            htmlFor="sort-by"
-            className="text-sm font-medium whitespace-nowrap"
-          >
-            Sort By:
-          </label>
-          <Select
-            value={sortBy}
-            onValueChange={setSortBy}
-            disabled={loading || error !== null}
-          >
-            <SelectTrigger id="sort-by" className="w-[180px]">
-              <SelectValue placeholder="Sort By" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="title">Title</SelectItem>
-              <SelectItem value="targetDate">Target Date</SelectItem>
-              <SelectItem value="createdAt">Created Date</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-
-        <div className="flex items-center gap-2 w-full md:w-auto">
-          <label
-            htmlFor="sort-order"
-            className="text-sm font-medium whitespace-nowrap"
-          >
-            Order:
-          </label>
-          <Select
-            value={sortOrder}
-            onValueChange={setSortOrder}
-            disabled={loading || error !== null}
-          >
-            <SelectTrigger id="sort-order" className="w-[120px]">
-              <SelectValue placeholder="Order" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="asc">Ascending</SelectItem>
-              <SelectItem value="desc">Descending</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-
-        {/* New Search Input */}
-        <div className="flex items-center gap-2 w-full md:w-auto">
+        {/* Search Input */}
+        <div className="flex items-center gap-2 w-full">
           <Search className="h-5 w-5 text-muted-foreground" />
           <Input
             type="text"
-            placeholder="Search goals..."
+            placeholder="Search goals by title, description, or category..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="flex-1"

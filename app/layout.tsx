@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "sonner";
-import { ConfirmDialogProvider } from "@/lib/hooks/useConfirmProvider";
+import { ConfirmProvider } from "@/lib/hooks/useConfirmProvider";
 import { ThemeProvider } from "@/components/theme-provider"; // Import ThemeProvider
 
 const inter = Inter({ subsets: ["latin"] });
@@ -28,9 +28,9 @@ export default function RootLayout({
           disableTransitionOnChange // Disable theme transition on change
         >
           <div className="min-h-screen bg-background font-sans antialiased">
-            <ConfirmDialogProvider>{children}</ConfirmDialogProvider>
+            <ConfirmProvider>{children}</ConfirmProvider>
           </div>
-          <Toaster richColors position="bottom-right" />
+          <Toaster richColors position="bottom-left" />
         </ThemeProvider>
       </body>
     </html>

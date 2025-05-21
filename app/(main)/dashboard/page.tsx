@@ -1,5 +1,5 @@
 // src/app/(main)/dashboard/page.tsx
-"use client";
+"use client"; // Mark as a Client Component
 
 import { useEffect, useState, useTransition, useRef } from "react";
 import { IGoal, ISubtask } from "@/types";
@@ -34,7 +34,14 @@ import {
   RotateCcw,
   Search,
   PlusCircle,
+  ArchiveIcon,
+  UnarchiveIcon,
+  MessageSquare,
+  CalendarDays,
+  Tag,
+  ArrowUpCircle,
   Goal,
+  Loader2,
 } from "lucide-react";
 import {
   Select,
@@ -48,6 +55,26 @@ import { toast } from "sonner";
 import { useConfirmDialog } from "@/lib/hooks/useConfirmProvider";
 import Fuse from "fuse.js";
 import { Skeleton } from "@/components/ui/skeleton";
+import dynamic from "next/dynamic"; // For dynamic import of Lucide icons
+
+// Dynamically import all Lucide icons to be able to render them by string name
+const DynamicLucideIcon = dynamic(
+  async () => {
+    const lucideIcons = await import("lucide-react");
+    return ({
+      name,
+      ...props
+    }: { name: string } & React.SVGProps<SVGSVGElement>) => {
+      const IconComponent = lucideIcons[name as keyof typeof lucideIcons];
+      if (IconComponent) {
+        return <IconComponent {...props} />;
+      }
+      // Fallback for emojis or invalid icon names
+      return <span {...props}>{name}</span>;
+    };
+  },
+  { ssr: false }
+);
 
 export default function DashboardPage() {
   const [goals, setGoals] = useState<IGoal[]>([]);
@@ -55,9 +82,11 @@ export default function DashboardPage() {
   const [error, setError] = useState<string | null>(null);
   const [isExporting, startExportTransition] = useTransition();
   const [isImporting, startImportTransition] = useTransition();
-  const [isUpdatingStatus, startUpdatingStatusTransition] = useTransition();
+  const [shownNotifications, setShownNotifications] = useState<Set<string>>(
+    new Set()
+  );
 
-  const [filterStatus, setFilterStatus] = useState<string>("all");
+  const [filterStatus, setFilterStatus] = useState<string>("active");
   const [filterPriority, setFilterPriority] = useState<string>("all");
   const [sortBy, setSortBy] = useState<string>("createdAt");
   const [sortOrder, setSortOrder] = useState<string>("desc");
@@ -67,7 +96,7 @@ export default function DashboardPage() {
   const confirm = useConfirmDialog();
 
   const fuseOptions = {
-    keys: ["title", "description", "category"],
+    keys: ["title", "shortDescription", "description", "category"],
     threshold: 0.3,
     includeScore: true,
   };
@@ -91,6 +120,42 @@ export default function DashboardPage() {
   useEffect(() => {
     fetchGoals();
   }, []);
+
+  useEffect(() => {
+    if (!loading && goals.length > 0) {
+      const now = new Date();
+      now.setHours(0, 0, 0, 0);
+
+      goals.forEach((goal) => {
+        if (goal.status === "active" && !shownNotifications.has(goal.id)) {
+          const target = new Date(goal.targetDate);
+          target.setHours(0, 0, 0, 0);
+
+          const daysDiff = differenceInDays(target, now);
+
+          if (isPast(target) && isBefore(target, now)) {
+            toast.error(`Goal Overdue: ${goal.title}`, {
+              description: `This goal was due on ${format(target, "PPP")}.`,
+              duration: 5000,
+              id: `overdue-${goal.id}`,
+            });
+            setShownNotifications((prev) => new Set(prev).add(goal.id));
+          } else if (daysDiff >= 0 && daysDiff <= 3) {
+            const dueText =
+              daysDiff === 0
+                ? "today"
+                : `in ${daysDiff} day${daysDiff === 1 ? "" : "s"}`;
+            toast.warning(`Goal Due Soon: ${goal.title}`, {
+              description: `This goal is due ${dueText}.`,
+              duration: 5000,
+              id: `due-soon-${goal.id}`,
+            });
+            setShownNotifications((prev) => new Set(prev).add(goal.id));
+          }
+        }
+      });
+    }
+  }, [loading, goals, shownNotifications]);
 
   const filteredAndSortedGoals = (() => {
     let currentGoals = goals;
@@ -223,90 +288,36 @@ export default function DashboardPage() {
   const getGoalStatusBadge = (goal: IGoal) => {
     if (goal.status === "completed") {
       return <Badge variant="success">Completed</Badge>;
-    }
-    if (goal.status === "archived") {
+    } else if (goal.status === "archived") {
       return <Badge variant="outline">Archived</Badge>;
-    }
-
-    const targetDate = new Date(goal.targetDate);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    const daysRemaining = differenceInDays(targetDate, today);
-
-    let statusText: string;
-    let statusVariant:
-      | "default"
-      | "secondary"
-      | "destructive"
-      | "outline"
-      | "success"
-      | "warning" = "secondary";
-    let StatusIcon: React.ElementType | null = null;
-
-    if (isPast(targetDate) && isBefore(targetDate, today)) {
-      statusText = "Overdue";
-      statusVariant = "destructive";
-      StatusIcon = AlertCircle;
-    } else if (daysRemaining <= 7 && daysRemaining >= 0) {
-      statusText =
-        daysRemaining === 0
-          ? "Due Today"
-          : `Due in ${daysRemaining} day${daysRemaining === 1 ? "" : "s"}`;
-      statusVariant = "warning";
-      StatusIcon = Clock;
     } else {
-      statusText = `Active (${daysRemaining} day${
-        daysRemaining === 1 ? "" : "s"
-      } left)`;
-      statusVariant = "secondary";
-    }
+      const targetDate = new Date(goal.targetDate);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
 
-    return (
-      <Badge variant={statusVariant} className="flex items-center gap-1">
-        {StatusIcon && <StatusIcon className="h-3 w-3" />} {statusText}
-      </Badge>
-    );
-  };
+      const daysRemaining = differenceInDays(targetDate, today);
 
-  const handleToggleGoalStatus = async (
-    goalId: string,
-    currentStatus: IGoal["status"]
-  ) => {
-    const newStatus: IGoal["status"] =
-      currentStatus === "completed" ? "active" : "completed";
-    const actionText = newStatus === "completed" ? "complete" : "activate";
-
-    const confirmed = await confirm({
-      title: `${
-        newStatus === "completed" ? "Mark as Completed?" : "Mark as Active?"
-      }`,
-      message: `Are you sure you want to ${actionText} this goal?`,
-      confirmText: `Yes, ${actionText} it`,
-      cancelText: "Cancel",
-    });
-
-    if (confirmed) {
-      startUpdatingStatusTransition(async () => {
-        try {
-          await updateGoal(goalId, { status: newStatus });
-          setGoals((prevGoals) =>
-            prevGoals.map((goal) =>
-              goal.id === goalId
-                ? { ...goal, status: newStatus, updatedAt: Date.now() }
-                : goal
-            )
-          );
-          toast.success("Goal Status Updated", {
-            description: `Goal has been marked as ${newStatus}.`,
-          });
-        } catch (err) {
-          console.error(`Failed to update goal status for ${goalId}:`, err);
-          toast.error("Status Update Failed", {
-            description: "Could not update goal status. Please try again.",
-          });
-        }
-      });
+      if (isPast(targetDate) && isBefore(targetDate, today)) {
+        return (
+          <Badge variant="destructive" className="flex items-center gap-1">
+            <AlertCircle className="h-3 w-3" /> Overdue
+          </Badge>
+        );
+      } else if (daysRemaining === 0) {
+        return (
+          <Badge variant="warning" className="flex items-center gap-1">
+            <Clock className="h-3 w-3" /> Due Today
+          </Badge>
+        );
+      } else if (daysRemaining > 0 && daysRemaining <= 7) {
+        return (
+          <Badge variant="warning" className="flex items-center gap-1">
+            <Clock className="h-3 w-3" /> Due Soon
+          </Badge>
+        );
+      } else {
+        return <Badge variant="secondary">Active</Badge>;
+      }
     }
   };
 
@@ -327,6 +338,23 @@ export default function DashboardPage() {
     </div>
   );
 
+  const renderFilterSearchSkeletons = () => (
+    <div className="flex flex-col gap-4 p-4 border rounded-lg bg-card text-card-foreground shadow-sm">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <div key={i} className="flex items-center gap-2">
+            <Skeleton className="h-4 w-1/4" />
+            <Skeleton className="h-10 w-3/4" />
+          </div>
+        ))}
+      </div>
+      <div className="flex items-center gap-2 w-full">
+        <Skeleton className="h-5 w-5" />
+        <Skeleton className="h-10 flex-1" />
+      </div>
+    </div>
+  );
+
   if (loading) {
     return (
       <div className="space-y-6">
@@ -336,6 +364,7 @@ export default function DashboardPage() {
         <p className="text-muted-foreground">
           Welcome to GoalFlow! Here you'll see an overview of all your goals.
         </p>
+        {renderFilterSearchSkeletons()}
         {renderSkeletons()}
       </div>
     );
@@ -359,8 +388,13 @@ export default function DashboardPage() {
           <Button
             onClick={handleExportData}
             disabled={isExporting || goals.length === 0 || isImporting}
+            className="cursor-pointer"
           >
-            <Download className="mr-2 h-4 w-4" />
+            {isExporting ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <Download className="mr-2 h-4 w-4" />
+            )}
             {isExporting ? "Exporting..." : "Export Data"}
           </Button>
           <input
@@ -373,14 +407,18 @@ export default function DashboardPage() {
           <Button
             onClick={handleImportButtonClick}
             disabled={isImporting || isExporting}
+            className="cursor-pointer"
           >
-            <Upload className="mr-2 h-4 w-4" />
+            {isImporting ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <Upload className="mr-2 h-4 w-4" />
+            )}
             {isImporting ? "Importing..." : "Import Data"}
           </Button>
         </div>
       </div>
 
-      {/* Filtering, Sorting, and Search Controls */}
       <div className="flex flex-col gap-4 p-4 border rounded-lg bg-card text-card-foreground shadow-sm">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <div className="flex items-center gap-2">
@@ -395,7 +433,10 @@ export default function DashboardPage() {
               onValueChange={setFilterStatus}
               disabled={loading || error !== null}
             >
-              <SelectTrigger id="filter-status" className="w-full">
+              <SelectTrigger
+                id="filter-status"
+                className="w-full cursor-pointer"
+              >
                 <SelectValue placeholder="All Statuses" />
               </SelectTrigger>
               <SelectContent>
@@ -419,7 +460,10 @@ export default function DashboardPage() {
               onValueChange={setFilterPriority}
               disabled={loading || error !== null}
             >
-              <SelectTrigger id="filter-priority" className="w-full">
+              <SelectTrigger
+                id="filter-priority"
+                className="w-full cursor-pointer"
+              >
                 <SelectValue placeholder="All Priorities" />
               </SelectTrigger>
               <SelectContent>
@@ -443,7 +487,7 @@ export default function DashboardPage() {
               onValueChange={setSortBy}
               disabled={loading || error !== null}
             >
-              <SelectTrigger id="sort-by" className="w-full">
+              <SelectTrigger id="sort-by" className="w-full cursor-pointer">
                 <SelectValue placeholder="Sort By" />
               </SelectTrigger>
               <SelectContent>
@@ -466,7 +510,7 @@ export default function DashboardPage() {
               onValueChange={setSortOrder}
               disabled={loading || error !== null}
             >
-              <SelectTrigger id="sort-order" className="w-full">
+              <SelectTrigger id="sort-order" className="w-full cursor-pointer">
                 <SelectValue placeholder="Order" />
               </SelectTrigger>
               <SelectContent>
@@ -477,12 +521,11 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* Search Input */}
         <div className="flex items-center gap-2 w-full">
           <Search className="h-5 w-5 text-muted-foreground" />
           <Input
             type="text"
-            placeholder="Search goals by title, description, or category..."
+            placeholder="Search goals by title, short description, or category..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="flex-1"
@@ -507,7 +550,7 @@ export default function DashboardPage() {
               them!
             </p>
           )}
-          <Button asChild className="mt-4">
+          <Button asChild className="mt-4 cursor-pointer">
             <Link href="/goals/new">
               <PlusCircle className="mr-2 h-4 w-4" /> Create New Goal
             </Link>
@@ -515,66 +558,112 @@ export default function DashboardPage() {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredAndSortedGoals.map((goal) => (
-            <Link key={goal.id} href={`/goals/${goal.id}`} className="block">
-              <Card className="flex flex-col h-full hover:shadow-lg transition-shadow duration-200 cursor-pointer">
-                <CardHeader>
-                  <div className="flex justify-between items-start">
-                    <CardTitle className="text-xl font-semibold">
-                      {goal.title}
-                    </CardTitle>
-                    {getGoalStatusBadge(goal)}
-                  </div>
-                  <CardDescription className="text-sm line-clamp-2">
-                    {goal.description || "No description provided."}
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="flex-1 space-y-3">
-                  <div className="flex justify-between items-center text-sm text-muted-foreground">
-                    <span>
-                      Target: {format(new Date(goal.targetDate), "PPP")}
-                    </span>
-                    {goal.category && (
-                      <Badge variant="outline">{goal.category}</Badge>
-                    )}
-                  </div>
-                  <div className="space-y-1">
-                    <div className="flex justify-between text-sm">
-                      <span>Progress</span>
-                      <span>{goal.progress}%</span>
+          {filteredAndSortedGoals.map((goal) => {
+            const statusBadge = getGoalStatusBadge(goal);
+
+            const targetDate = new Date(goal.targetDate);
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            const daysRemaining = differenceInDays(targetDate, today);
+
+            let daysLeftDisplay = null;
+            if (goal.status === "active") {
+              if (isPast(targetDate) && isBefore(targetDate, today)) {
+                daysLeftDisplay = (
+                  <span className="text-destructive text-xs font-medium ml-1">
+                    ({Math.abs(daysRemaining)} day
+                    {Math.abs(daysRemaining) === 1 ? "" : "s"} ago)
+                  </span>
+                );
+              } else if (daysRemaining === 0) {
+                daysLeftDisplay = (
+                  <span className="text-yellow-600 dark:text-yellow-400 text-xs font-medium ml-1">
+                    (Due Today)
+                  </span>
+                );
+              } else if (daysRemaining > 0) {
+                daysLeftDisplay = (
+                  <span className="text-muted-foreground text-xs font-medium ml-1">
+                    ({daysRemaining} day{daysRemaining === 1 ? "" : "s"} left)
+                  </span>
+                );
+              }
+            }
+
+            return (
+              <Link key={goal.id} href={`/goals/${goal.id}`} className="block">
+                <Card className="flex flex-col h-full hover:shadow-lg transition-shadow duration-200 cursor-pointer border border-border overflow-hidden">
+                  <CardHeader className="p-4 pb-0">
+                    <div className="flex justify-between items-start gap-2">
+                      <div className="flex items-center gap-2">
+                        {" "}
+                        {/* Added div for icon and title */}
+                        {goal.icon && (
+                          <div className="flex-shrink-0 text-primary">
+                            <DynamicLucideIcon
+                              name={goal.icon}
+                              className="h-5 w-5"
+                            />
+                          </div>
+                        )}
+                        <CardTitle className="text-xl font-semibold leading-tight text-foreground">
+                          {goal.title}
+                        </CardTitle>
+                      </div>
+                      {statusBadge}
                     </div>
-                    <Progress value={goal.progress} className="w-full h-2" />{" "}
-                    {/* Increased height */}
-                  </div>
-                </CardContent>
-                <CardFooter className="flex justify-end pt-4">
-                  <Button
-                    variant={
-                      goal.status === "completed" ? "secondary" : "default"
-                    }
-                    size="sm"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      handleToggleGoalStatus(goal.id, goal.status);
-                    }}
-                    disabled={isUpdatingStatus}
-                  >
-                    {goal.status === "completed" ? (
-                      <>
-                        <RotateCcw className="mr-2 h-4 w-4" /> Mark as Active
-                      </>
-                    ) : (
-                      <>
-                        <CheckCircle2 className="mr-2 h-4 w-4" /> Mark as
-                        Completed
-                      </>
+                    {goal.shortDescription && (
+                      <CardDescription className="text-sm text-muted-foreground line-clamp-2 mt-2">
+                        <span className="flex items-center gap-1">
+                          <MessageSquare className="h-3 w-3 flex-shrink-0" />
+                          {goal.shortDescription}
+                        </span>
+                      </CardDescription>
                     )}
-                  </Button>
-                </CardFooter>
-              </Card>
-            </Link>
-          ))}
+                  </CardHeader>
+                  <CardContent className="flex-1 p-4 pt-3 space-y-3">
+                    <div className="space-y-2 text-sm text-muted-foreground">
+                      <div className="flex items-center gap-2">
+                        <CalendarDays className="h-4 w-4 flex-shrink-0" />
+                        <span>
+                          Target: {format(new Date(goal.targetDate), "PPP")}
+                        </span>
+                        {daysLeftDisplay}
+                      </div>
+                      {goal.category && (
+                        <div className="flex items-center gap-2">
+                          <Tag className="h-4 w-4 flex-shrink-0" />
+                          <Badge variant="outline">{goal.category}</Badge>
+                        </div>
+                      )}
+                      <div className="flex items-center gap-2">
+                        <ArrowUpCircle className="h-4 w-4 flex-shrink-0" />
+                        <Badge
+                          variant={
+                            goal.priority === "high"
+                              ? "destructive"
+                              : goal.priority === "medium"
+                              ? "default"
+                              : "secondary"
+                          }
+                        >
+                          {goal.priority.charAt(0).toUpperCase() +
+                            goal.priority.slice(1)}
+                        </Badge>
+                      </div>
+                    </div>
+                    <div className="space-y-1 mt-4">
+                      <div className="flex justify-between text-sm text-foreground">
+                        <span>Progress</span>
+                        <span>{goal.progress}%</span>
+                      </div>
+                      <Progress value={goal.progress} className="w-full h-2" />
+                    </div>
+                  </CardContent>
+                </Card>
+              </Link>
+            );
+          })}
         </div>
       )}
     </div>

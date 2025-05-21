@@ -2,60 +2,107 @@
 "use client";
 
 import { IGoal } from "@/types";
-import { format } from "date-fns";
+import { format, isPast, isBefore, differenceInDays } from "date-fns";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { Button } from "@/components/ui/button";
 import {
-  Edit,
+  MessageSquare,
   CalendarIcon,
   Tag,
   Info,
   ListChecks,
   ArrowUpCircle,
-  Trash2,
+  AlertCircle,
+  Clock,
 } from "lucide-react";
+import dynamic from "next/dynamic"; // For dynamic import of Lucide icons
+
+// Dynamically import all Lucide icons to be able to render them by string name
+const DynamicLucideIcon = dynamic(
+  async () => {
+    const lucideIcons = await import("lucide-react");
+    return ({
+      name,
+      ...props
+    }: { name: string } & React.SVGProps<SVGSVGElement>) => {
+      const IconComponent = lucideIcons[name as keyof typeof lucideIcons];
+      if (IconComponent) {
+        return <IconComponent {...props} />;
+      }
+      // Fallback for emojis or invalid icon names
+      return <span {...props}>{name}</span>;
+    };
+  },
+  { ssr: false }
+);
 
 interface GoalDetailsDisplayProps {
   goal: IGoal;
-  onEditClick: () => void; // Callback to switch to edit mode
-  onDeleteClick: () => void; // Callback for delete action
 }
 
-export function GoalDetailsDisplay({
-  goal,
-  onEditClick,
-  onDeleteClick,
-}: GoalDetailsDisplayProps) {
+export function GoalDetailsDisplay({ goal }: GoalDetailsDisplayProps) {
+  // Calculate days left for main goal
+  const targetDate = new Date(goal.targetDate);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const daysRemaining = differenceInDays(targetDate, today);
+
+  let daysLeftDisplay = null;
+  if (goal.status === "active") {
+    if (isPast(targetDate) && isBefore(targetDate, today)) {
+      daysLeftDisplay = (
+        <span className="text-destructive text-xs font-medium ml-1">
+          ({Math.abs(daysRemaining)} day
+          {Math.abs(daysRemaining) === 1 ? "" : "s"} ago)
+        </span>
+      );
+    } else if (daysRemaining === 0) {
+      daysLeftDisplay = (
+        <span className="text-yellow-600 dark:text-yellow-400 text-xs font-medium ml-1">
+          (Due Today)
+        </span>
+      );
+    } else if (daysRemaining > 0) {
+      daysLeftDisplay = (
+        <span className="text-muted-foreground text-xs font-medium ml-1">
+          ({daysRemaining} day{daysRemaining === 1 ? "" : "s"} left)
+        </span>
+      );
+    }
+  }
+
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-start">
+      <div className="flex items-center gap-3 flex-wrap">
+        {" "}
+        {/* Adjusted for icon and title */}
+        {goal.icon && (
+          <div className="flex-shrink-0 text-primary">
+            <DynamicLucideIcon name={goal.icon} className="h-8 w-8" />
+          </div>
+        )}
         <h2 className="text-3xl font-bold tracking-tight">{goal.title}</h2>
-        <div className="flex gap-2">
-          <Button
-            variant="outline"
-            onClick={onEditClick}
-            className="flex items-center gap-2"
-          >
-            <Edit className="h-4 w-4" /> Edit Goal
-          </Button>
-          <Button
-            variant="destructive"
-            onClick={onDeleteClick}
-            className="flex items-center gap-2"
-          >
-            <Trash2 className="h-4 w-4" /> Delete Goal
-          </Button>
-        </div>
       </div>
+
+      {goal.shortDescription && (
+        <div className="space-y-2">
+          <h3 className="text-lg font-semibold flex items-center gap-2">
+            <MessageSquare className="h-4 w-4 text-muted-foreground" /> Why this
+            Goal?
+          </h3>
+          <p className="text-muted-foreground">{goal.shortDescription}</p>
+        </div>
+      )}
 
       {goal.description && (
         <div className="space-y-2">
           <h3 className="text-lg font-semibold flex items-center gap-2">
-            <Info className="h-4 w-4 text-muted-foreground" /> Description
+            <Info className="h-4 w-4 text-muted-foreground" /> Detailed
+            Description
           </h3>
           <div
-            className="prose dark:prose-invert max-w-none text-muted-foreground"
+            className="prose dark:prose-invert max-w-none p-4 border rounded-md bg-background/50 text-foreground leading-relaxed"
             dangerouslySetInnerHTML={{ __html: goal.description }}
           />
         </div>
@@ -69,6 +116,7 @@ export function GoalDetailsDisplay({
           </h3>
           <p className="text-muted-foreground">
             {format(new Date(goal.targetDate), "PPP")}
+            {daysLeftDisplay}
           </p>
         </div>
 
@@ -110,16 +158,12 @@ export function GoalDetailsDisplay({
         </div>
       </div>
 
-      {/* Enhanced Progress Visualization */}
       <div className="space-y-2 text-center">
         <h3 className="text-2xl font-bold flex items-center justify-center gap-2">
           Overall Progress
         </h3>
         <div className="relative w-32 h-32 mx-auto">
-          {" "}
-          {/* Container for circle */}
           <svg className="w-full h-full" viewBox="0 0 100 100">
-            {/* Background circle */}
             <circle
               className="text-gray-200 dark:text-gray-700"
               strokeWidth="10"
@@ -129,11 +173,10 @@ export function GoalDetailsDisplay({
               cx="50"
               cy="50"
             />
-            {/* Progress circle */}
             <circle
               className="text-primary transition-all duration-500 ease-in-out"
               strokeWidth="10"
-              strokeDasharray={2 * Math.PI * 40} // Circumference
+              strokeDasharray={2 * Math.PI * 40}
               strokeDashoffset={
                 2 * Math.PI * 40 - (2 * Math.PI * 40 * goal.progress) / 100
               }
@@ -143,7 +186,7 @@ export function GoalDetailsDisplay({
               r="40"
               cx="50"
               cy="50"
-              transform="rotate(-90 50 50)" // Start from top
+              transform="rotate(-90 50 50)"
             />
           </svg>
           <div className="absolute inset-0 flex items-center justify-center">
@@ -152,11 +195,6 @@ export function GoalDetailsDisplay({
             </span>
           </div>
         </div>
-        <Progress
-          value={goal.progress}
-          className="w-full max-w-sm mx-auto h-2 mt-4"
-        />{" "}
-        {/* Also keep a linear bar */}
       </div>
 
       <p className="text-sm text-muted-foreground text-right">

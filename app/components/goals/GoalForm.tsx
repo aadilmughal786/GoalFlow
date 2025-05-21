@@ -3,11 +3,9 @@
 
 import { useState, useTransition, useEffect } from "react";
 import { useRouter } from "next/navigation";
-
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-// import { Textarea } from '@/components/ui/textarea'; // Removed Textarea
-import { RichTextEditor } from "@/components/ui/rich-text-editor"; // Import RichTextEditor
+import { RichTextEditor } from "@/components/ui/rich-text-editor";
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -22,45 +20,74 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import { Slider } from "@/components/ui/slider";
 import { cn } from "@/lib/utils";
-import { CalendarIcon } from "lucide-react";
+import { CalendarIcon, Loader2 } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { toast } from "sonner";
+import dynamic from "next/dynamic"; // For dynamic import of Lucide icons
 
 import { addGoal, updateGoal } from "@/services/indexedDbService";
 import { IGoal } from "@/types";
 
+// Dynamically import all Lucide icons to be able to render them by string name
+const DynamicLucideIcon = dynamic(
+  async () => {
+    const lucideIcons = await import("lucide-react");
+    return ({
+      name,
+      ...props
+    }: { name: string } & React.SVGProps<SVGSVGElement>) => {
+      const IconComponent = lucideIcons[name as keyof typeof lucideIcons];
+      if (IconComponent) {
+        return <IconComponent {...props} />;
+      }
+      // Fallback for emojis or invalid icon names
+      return <span {...props}>{name}</span>;
+    };
+  },
+  { ssr: false }
+);
+
 interface GoalFormProps {
-  initialGoalData?: IGoal; // Optional prop for editing existing goals
+  initialGoalData?: IGoal;
+  onGoalSaved: (updatedGoal: IGoal) => void;
+  isSaving: boolean;
+  onCancelEdit?: () => void;
 }
 
-export function GoalForm({ initialGoalData }: GoalFormProps) {
+export function GoalForm({
+  initialGoalData,
+  onGoalSaved,
+  isSaving,
+  onCancelEdit,
+}: GoalFormProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
 
   const [formData, setFormData] = useState<
-    Omit<IGoal, "id" | "createdAt" | "updatedAt">
+    Omit<IGoal, "id" | "createdAt" | "updatedAt" | "progress">
   >(() => {
     if (initialGoalData) {
       return {
         title: initialGoalData.title,
-        description: initialGoalData.description || "", // Ensure description is an empty string if null/undefined
+        shortDescription: initialGoalData.shortDescription || "",
+        description: initialGoalData.description || "",
         targetDate: initialGoalData.targetDate,
         category: initialGoalData.category || "",
         priority: initialGoalData.priority,
         status: initialGoalData.status,
-        progress: initialGoalData.progress,
+        icon: initialGoalData.icon || "", // Initialize icon
       };
     }
     return {
       title: "",
+      shortDescription: "",
       description: "",
       targetDate: "",
       category: "",
       priority: "medium",
       status: "active",
-      progress: 0,
+      icon: "", // Initialize icon
     };
   });
 
@@ -74,30 +101,31 @@ export function GoalForm({ initialGoalData }: GoalFormProps) {
     if (initialGoalData) {
       setFormData({
         title: initialGoalData.title,
+        shortDescription: initialGoalData.shortDescription || "",
         description: initialGoalData.description || "",
         targetDate: initialGoalData.targetDate,
         category: initialGoalData.category || "",
         priority: initialGoalData.priority,
         status: initialGoalData.status,
-        progress: initialGoalData.progress,
+        icon: initialGoalData.icon || "",
       });
       setDate(parseISO(initialGoalData.targetDate));
     } else {
       setFormData({
         title: "",
+        shortDescription: "",
         description: "",
         targetDate: "",
         category: "",
         priority: "medium",
         status: "active",
-        progress: 0,
+        icon: "",
       });
       setDate(undefined);
     }
   }, [initialGoalData]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    // Changed event type
     const { id, value } = e.target;
     setFormData((prev) => ({ ...prev, [id]: value }));
   };
@@ -118,10 +146,6 @@ export function GoalForm({ initialGoalData }: GoalFormProps) {
     }));
   };
 
-  const handleProgressChange = (value: number[]) => {
-    setFormData((prev) => ({ ...prev, progress: value[0] }));
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -133,20 +157,29 @@ export function GoalForm({ initialGoalData }: GoalFormProps) {
       return;
     }
 
+    if (isSaving) return;
+
     startTransition(async () => {
       try {
+        let savedGoal: IGoal;
         if (initialGoalData?.id) {
-          await updateGoal(initialGoalData.id, formData);
-          toast.success("Goal Updated", {
-            description: "Your goal has been successfully updated.",
+          await updateGoal(initialGoalData.id, {
+            ...formData,
+            progress: initialGoalData.progress,
           });
+          savedGoal = {
+            ...initialGoalData,
+            ...formData,
+            updatedAt: Date.now(),
+          };
         } else {
-          await addGoal(formData);
+          savedGoal = await addGoal({ ...formData, progress: 0 });
           toast.success("Goal Created", {
             description: "Your new goal has been successfully added.",
           });
+          router.push(`/goals/${savedGoal.id}`);
         }
-        router.push("/dashboard");
+        onGoalSaved(savedGoal);
       } catch (error) {
         console.error("Failed to save goal:", error);
         toast.error("Failed to save goal", {
@@ -159,7 +192,7 @@ export function GoalForm({ initialGoalData }: GoalFormProps) {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
+    <form onSubmit={handleSubmit} id="goal-form" className="space-y-6">
       <div className="space-y-2">
         <Label htmlFor="title">
           Goal Title <span className="text-red-500">*</span>
@@ -170,17 +203,64 @@ export function GoalForm({ initialGoalData }: GoalFormProps) {
           value={formData.title}
           onChange={handleInputChange}
           required
-          disabled={isPending}
+          disabled={isSaving || isPending}
         />
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="description">Description (Optional)</Label>
+        <Label htmlFor="shortDescription">
+          Why is this goal important to you? (Short description for cards)
+        </Label>{" "}
+        {/* Updated prompt */}
+        <Input
+          id="shortDescription"
+          placeholder="e.g., To enhance my web development skills and build exciting projects."
+          value={formData.shortDescription}
+          onChange={handleInputChange}
+          maxLength={150}
+          disabled={isSaving || isPending}
+        />
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="icon">Goal Icon (Lucide icon name or emoji)</Label>
+        <div className="flex items-center gap-2">
+          <Input
+            id="icon"
+            placeholder="e.g., Target, Rocket, 🚀"
+            value={formData.icon}
+            onChange={handleInputChange}
+            maxLength={20}
+            disabled={isSaving || isPending}
+            className="flex-1"
+          />
+          {formData.icon && (
+            <div className="p-2 border rounded-md flex items-center justify-center h-10 w-10 text-primary">
+              <DynamicLucideIcon name={formData.icon} className="h-6 w-6" />
+            </div>
+          )}
+        </div>
+        <p className="text-xs text-muted-foreground">
+          Enter a{" "}
+          <a
+            href="https://lucide.dev/icons"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="underline"
+          >
+            Lucide React icon name
+          </a>{" "}
+          (e.g., `Rocket`, `Heart`, `Sparkles`) or an emoji.
+        </p>
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="description">Detailed Description (Optional)</Label>
         <RichTextEditor
-          content={formData.description || ""} // Pass current description
-          onChange={handleDescriptionChange} // Handle content changes
+          content={formData.description || ""}
+          onChange={handleDescriptionChange}
           placeholder="Provide more details about your goal..."
-          disabled={isPending}
+          disabled={isSaving || isPending}
         />
       </div>
 
@@ -197,7 +277,7 @@ export function GoalForm({ initialGoalData }: GoalFormProps) {
                   "w-full justify-start text-left font-normal",
                   !date && "text-muted-foreground"
                 )}
-                disabled={isPending}
+                disabled={isSaving || isPending}
               >
                 <CalendarIcon className="mr-2 h-4 w-4" />
                 {date ? format(date, "PPP") : <span>Pick a date</span>}
@@ -209,7 +289,7 @@ export function GoalForm({ initialGoalData }: GoalFormProps) {
                 selected={date}
                 onSelect={handleDateSelect}
                 initialFocus
-                disabled={isPending}
+                disabled={isSaving || isPending}
               />
             </PopoverContent>
           </Popover>
@@ -222,7 +302,7 @@ export function GoalForm({ initialGoalData }: GoalFormProps) {
             placeholder="e.g., Career, Fitness"
             value={formData.category}
             onChange={handleInputChange}
-            disabled={isPending}
+            disabled={isSaving || isPending}
           />
         </div>
       </div>
@@ -237,7 +317,7 @@ export function GoalForm({ initialGoalData }: GoalFormProps) {
             onValueChange={(value: "low" | "medium" | "high") =>
               handleSelectChange("priority", value)
             }
-            disabled={isPending}
+            disabled={isSaving || isPending}
             required
           >
             <SelectTrigger>
@@ -260,7 +340,7 @@ export function GoalForm({ initialGoalData }: GoalFormProps) {
             onValueChange={(value: "active" | "completed" | "archived") =>
               handleSelectChange("status", value)
             }
-            disabled={isPending}
+            disabled={isSaving || isPending}
             required
           >
             <SelectTrigger>
@@ -275,28 +355,20 @@ export function GoalForm({ initialGoalData }: GoalFormProps) {
         </div>
       </div>
 
-      <div className="space-y-2">
-        <Label htmlFor="progress">Current Progress: {formData.progress}%</Label>
-        <Slider
-          id="progress"
-          defaultValue={[0]}
-          max={100}
-          step={1}
-          value={[formData.progress]}
-          onValueChange={handleProgressChange}
-          disabled={isPending}
-        />
-      </div>
-
-      <Button type="submit" className="w-full" disabled={isPending}>
-        {isPending
-          ? initialGoalData
-            ? "Updating Goal..."
-            : "Creating Goal..."
-          : initialGoalData
-          ? "Update Goal"
-          : "Create Goal"}
-      </Button>
+      {!initialGoalData && (
+        <div className="flex justify-end pt-6 border-t mt-8">
+          <Button
+            type="submit"
+            className="w-full sm:w-auto cursor-pointer"
+            disabled={isSaving || isPending}
+          >
+            {isSaving || isPending ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : null}
+            {isSaving || isPending ? "Creating Goal..." : "Create Goal"}
+          </Button>
+        </div>
+      )}
     </form>
   );
 }

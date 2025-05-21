@@ -16,12 +16,14 @@ const DB_VERSION = 1;
 class Goal implements IGoal {
   id: string;
   title: string;
+  shortDescription?: string;
   description?: string;
   targetDate: string;
   category?: string;
   priority: "low" | "medium" | "high";
   status: "active" | "completed" | "archived";
   progress: number;
+  icon?: string; // New: icon property
   createdAt: number;
   updatedAt: number;
 
@@ -34,17 +36,21 @@ class Goal implements IGoal {
     progress: number,
     createdAt: number,
     updatedAt: number,
+    shortDescription?: string,
     description?: string,
-    category?: string
+    category?: string,
+    icon?: string // New: icon parameter
   ) {
     this.id = id;
     this.title = title;
+    this.shortDescription = shortDescription;
     this.description = description;
     this.targetDate = targetDate;
     this.category = category;
     this.priority = priority;
     this.status = status;
     this.progress = progress;
+    this.icon = icon; // Assign new property
     this.createdAt = createdAt;
     this.updatedAt = updatedAt;
   }
@@ -59,6 +65,7 @@ class Subtask implements ISubtask {
   goalId: string;
   title: string;
   isCompleted: boolean;
+  targetDate: string;
   createdAt: number;
 
   constructor(
@@ -66,12 +73,14 @@ class Subtask implements ISubtask {
     goalId: string,
     title: string,
     isCompleted: boolean,
+    targetDate: string,
     createdAt: number
   ) {
     this.id = id;
     this.goalId = goalId;
     this.title = title;
     this.isCompleted = isCompleted;
+    this.targetDate = targetDate;
     this.createdAt = createdAt;
   }
 }
@@ -90,10 +99,8 @@ class GoalFlowDexie extends Dexie {
     // Define the database schema for version 1
     this.version(DB_VERSION).stores({
       goals:
-        "id, title, targetDate, category, priority, status, progress, createdAt, updatedAt",
-      // 'id' is the primary key. Other fields are indexed for efficient querying.
-      subtasks: "id, goalId, isCompleted, createdAt",
-      // 'id' is the primary key. 'goalId' and 'isCompleted' are indexed for filtering.
+        "id, title, targetDate, category, priority, status, progress, createdAt, updatedAt, icon", // Added 'icon' to schema
+      subtasks: "id, goalId, isCompleted, targetDate, createdAt",
     });
 
     // Map the interfaces to the tables for type safety
@@ -259,53 +266,27 @@ export async function exportAllData(): Promise<void> {
     console.log("Data exported successfully.");
   } catch (error) {
     console.error("Failed to export data:", error);
+    alert("Failed to export data. Please check console for details.");
   }
 }
 
 /**
- * Imports data from a JSON object, clearing existing data first.
- * @param importedData The parsed JSON object containing goals and subtasks.
- * @returns A promise that resolves when the import is complete.
+ * Imports goals and subtasks from a JSON file into the database.
+ * This operation will clear existing data before importing.
+ * @param data The parsed JSON data containing goals and subtasks.
  */
-export async function importAllData(importedData: {
+export async function importAllData(data: {
   goals: IGoal[];
   subtasks: ISubtask[];
   version?: number;
 }): Promise<void> {
-  try {
-    // Basic validation for the imported data structure and version
-    if (
-      !importedData ||
-      !Array.isArray(importedData.goals) ||
-      !Array.isArray(importedData.subtasks)
-    ) {
-      throw new Error("Invalid import data format.");
-    }
-    // You could add version checks here if you plan to have breaking schema changes
-    // if (importedData.version && importedData.version > DB_VERSION) {
-    //   console.warn("Imported data is from a newer version. Compatibility issues might occur.");
-    // }
+  await db.transaction("rw", db.goals, db.subtasks, async () => {
+    // Clear existing data
+    await db.goals.clear();
+    await db.subtasks.clear();
 
-    await db.transaction("rw", db.goals, db.subtasks, async () => {
-      // Clear existing data from both tables
-      await db.goals.clear();
-      await db.subtasks.clear();
-      console.log("Existing data cleared.");
-
-      // Add imported goals
-      await db.goals.bulkAdd(importedData.goals);
-      console.log(`${importedData.goals.length} goals imported.`);
-
-      // Add imported subtasks
-      await db.subtasks.bulkAdd(importedData.subtasks);
-      console.log(`${importedData.subtasks.length} subtasks imported.`);
-    });
-
-    console.log("Data imported successfully.");
-  } catch (error) {
-    console.error("Failed to import data:", error);
-
-    // Re-throw to allow component to handle pending state if needed
-    throw error;
-  }
+    // Add imported data
+    await db.goals.bulkAdd(data.goals);
+    await db.subtasks.bulkAdd(data.subtasks);
+  });
 }

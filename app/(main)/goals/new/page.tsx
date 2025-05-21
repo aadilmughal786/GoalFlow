@@ -1,28 +1,34 @@
 // src/app/(main)/goals/new/page.tsx
-import { GoalForm } from "@/components/goals/GoalForm"; // We'll create this next
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+"use client";
+
+import { useState, useTransition } from "react";
+import { GoalForm } from "@/components/goals/GoalForm";
+import { IGoal } from "@/types";
+import { toast } from "sonner";
+import { useRouter } from "next/navigation";
 
 export default function NewGoalPage() {
+  const router = useRouter();
+  const [isSavingGoal, startSavingGoalTransition] = useTransition();
+
+  const handleGoalSaved = (newGoal: IGoal) => {
+    startSavingGoalTransition(() => {
+      // The GoalForm itself now handles the redirection for new goals.
+      // This callback can still be used for other side effects if needed,
+      // but the primary navigation is done within GoalForm.
+      toast.success("Goal Created Successfully", {
+        description: `Goal "${newGoal.title}" has been added.`,
+      });
+    });
+  };
+
   return (
-    <div className="flex items-center justify-center min-h-[calc(100vh-80px)] p-4 md:p-6 lg:p-8">
-      <Card className="w-full max-w-2xl">
-        <CardHeader>
-          <CardTitle className="text-2xl font-bold">Create New Goal</CardTitle>
-          <CardDescription>
-            Define your next big aspiration. All fields are required unless
-            marked optional.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <GoalForm />
-        </CardContent>
-      </Card>
+    <div className="space-y-6">
+      <h1 className="text-3xl font-bold tracking-tight">Create New Goal</h1>
+      <p className="text-muted-foreground">
+        Define your new objective and set its key details.
+      </p>
+      <GoalForm onGoalSaved={handleGoalSaved} isSaving={isSavingGoal} />
     </div>
   );
 }

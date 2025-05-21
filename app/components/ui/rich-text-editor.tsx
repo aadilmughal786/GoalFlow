@@ -6,8 +6,7 @@ import { useEditor, EditorContent, Editor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Link from "@tiptap/extension-link";
 import Placeholder from "@tiptap/extension-placeholder";
-import { Button } from "@/components/ui/button";
-import { Toggle } from "@/components/ui/toggle"; // Add this component: npx shadcn-ui@latest add toggle
+import { Toggle } from "@/components/ui/toggle";
 import {
   Bold,
   Italic,

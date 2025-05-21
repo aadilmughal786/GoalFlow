@@ -3,7 +3,15 @@
 
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { Goal, Sun, Moon, Menu } from "lucide-react";
+import {
+  Goal,
+  Sun,
+  Moon,
+  Menu,
+  Lightbulb,
+  LayoutDashboard,
+  Target,
+} from "lucide-react"; // Added Lightbulb, LayoutDashboard, Target icons
 import { useTheme } from "next-themes";
 import {
   Sheet,
@@ -33,7 +41,20 @@ export function Header() {
         {/* Desktop Navigation */}
         <nav className="hidden md:flex items-center space-x-4">
           <Button asChild variant="ghost" className="text-sm font-medium">
-            <Link href="/dashboard">Dashboard</Link>
+            <Link href="/dashboard" className="flex items-center gap-1">
+              <LayoutDashboard className="h-4 w-4" /> Dashboard
+            </Link>
+          </Button>
+          <Button asChild variant="ghost" className="text-sm font-medium">
+            <Link href="/goals/new" className="flex items-center gap-1">
+              <Target className="h-4 w-4" /> New Goal
+            </Link>
+          </Button>
+          {/* New: Idea Box link for desktop */}
+          <Button asChild variant="ghost" className="text-sm font-medium">
+            <Link href="/ideas" className="flex items-center gap-1">
+              <Lightbulb className="h-4 w-4" /> Idea Box
+            </Link>
           </Button>
           {/* New: About link for desktop */}
           <Button asChild variant="ghost" className="text-sm font-medium">
@@ -86,22 +107,29 @@ export function Header() {
               <nav className="flex flex-col gap-4 mt-6">
                 <Link
                   href="/dashboard"
-                  className="text-lg font-medium hover:text-primary transition-colors"
+                  className="text-lg font-medium hover:text-primary transition-colors flex items-center gap-2"
                 >
-                  Dashboard
+                  <LayoutDashboard className="h-5 w-5" /> Dashboard
+                </Link>
+                <Link
+                  href="/goals/new"
+                  className="text-lg font-medium hover:text-primary transition-colors flex items-center gap-2"
+                >
+                  <Target className="h-5 w-5" /> Add New Goal
+                </Link>
+                {/* New: Idea Box link for mobile */}
+                <Link
+                  href="/ideas"
+                  className="text-lg font-medium hover:text-primary transition-colors flex items-center gap-2"
+                >
+                  <Lightbulb className="h-5 w-5" /> Idea Box
                 </Link>
                 {/* New: About link for mobile */}
                 <Link
                   href="/"
-                  className="text-lg font-medium hover:text-primary transition-colors"
+                  className="text-lg font-medium hover:text-primary transition-colors flex items-center gap-2"
                 >
                   About
-                </Link>
-                <Link
-                  href="/goals/new"
-                  className="text-lg font-medium hover:text-primary transition-colors"
-                >
-                  Add New Goal
                 </Link>
               </nav>
             </SheetContent>

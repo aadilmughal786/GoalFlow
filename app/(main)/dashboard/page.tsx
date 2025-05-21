@@ -2,14 +2,15 @@
 "use client"; // Mark as a Client Component
 
 import { useEffect, useState, useTransition, useRef } from "react";
-import { IGoal, ISubtask } from "@/types";
+import { IGoal, ISubtask, IIdea, IQuote } from "@/types"; // Import IIdea, IQuote
 import {
   getGoals,
   deleteGoal,
   exportAllData,
   importAllData,
   updateGoal,
-} from "@/services/indexedDbService";
+  getQuotes,
+} from "@/services/indexedDbService"; // Import getQuotes
 import {
   Card,
   CardContent,
@@ -42,7 +43,9 @@ import {
   ArrowUpCircle,
   Goal,
   Loader2,
-} from "lucide-react";
+  Lightbulb,
+  Quote as QuoteIcon,
+} from "lucide-react"; // Added Quote icon
 import {
   Select,
   SelectContent,
@@ -92,6 +95,8 @@ export default function DashboardPage() {
   const [sortOrder, setSortOrder] = useState<string>("desc");
   const [searchQuery, setSearchQuery] = useState<string>("");
 
+  const [currentQuote, setCurrentQuote] = useState<IQuote | null>(null); // New state for current quote
+
   const fileInputRef = useRef<HTMLInputElement>(null);
   const confirm = useConfirmDialog();
 
@@ -117,8 +122,24 @@ export default function DashboardPage() {
     }
   };
 
+  const fetchAndSetRandomQuote = async () => {
+    try {
+      const quotes = await getQuotes();
+      if (quotes.length > 0) {
+        const randomIndex = Math.floor(Math.random() * quotes.length);
+        setCurrentQuote(quotes[randomIndex]);
+      } else {
+        setCurrentQuote(null);
+      }
+    } catch (err) {
+      console.error("Failed to fetch quotes:", err);
+      setCurrentQuote(null);
+    }
+  };
+
   useEffect(() => {
     fetchGoals();
+    fetchAndSetRandomQuote(); // Fetch quote on component mount
   }, []);
 
   useEffect(() => {
@@ -238,11 +259,14 @@ export default function DashboardPage() {
         const fileContent = await file.text();
         const importedData = JSON.parse(fileContent);
 
+        // Extended isValidImport to check for quotes and new idea fields
         const isValidImport = (
           data: any
         ): data is {
           goals: IGoal[];
           subtasks: ISubtask[];
+          ideas?: IIdea[];
+          quotes?: IQuote[];
           version?: number;
         } => {
           return (
@@ -256,7 +280,17 @@ export default function DashboardPage() {
             data.subtasks.every(
               (subtask: any) =>
                 "id" in subtask && "goalId" in subtask && "title" in subtask
-            )
+            ) &&
+            (data.ideas === undefined ||
+              (Array.isArray(data.ideas) &&
+                data.ideas.every(
+                  (idea: any) => "id" in idea && "content" in idea
+                ))) &&
+            (data.quotes === undefined ||
+              (Array.isArray(data.quotes) &&
+                data.quotes.every(
+                  (quote: any) => "id" in quote && "text" in quote
+                )))
           );
         };
 
@@ -266,6 +300,7 @@ export default function DashboardPage() {
 
         await importAllData(importedData);
         await fetchGoals();
+        await fetchAndSetRandomQuote(); // Re-fetch quote after import
         toast.success("Import Successful", {
           description:
             "Your goals have been successfully imported and updated.",
@@ -534,6 +569,22 @@ export default function DashboardPage() {
         </div>
       </div>
 
+      {currentQuote && (
+        <Card className="p-6 text-center bg-gradient-to-r from-primary/10 to-accent/10 border border-primary/20 shadow-md">
+          <CardContent className="p-0 space-y-3">
+            <QuoteIcon className="h-8 w-8 text-primary mx-auto" />
+            <p className="text-xl italic font-semibold text-foreground leading-relaxed">
+              &ldquo;{currentQuote.text}&rdquo;
+            </p>
+            {currentQuote.author && (
+              <p className="text-sm text-muted-foreground">
+                - {currentQuote.author}
+              </p>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
       <p className="text-muted-foreground">
         Welcome to GoalFlow! Here you'll see an overview of all your goals.
       </p>
@@ -596,8 +647,6 @@ export default function DashboardPage() {
                   <CardHeader className="p-4 pb-0">
                     <div className="flex justify-between items-start gap-2">
                       <div className="flex items-center gap-2">
-                        {" "}
-                        {/* Added div for icon and title */}
                         {goal.icon && (
                           <div className="flex-shrink-0 text-primary">
                             <DynamicLucideIcon

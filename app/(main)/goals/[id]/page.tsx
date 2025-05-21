@@ -11,8 +11,11 @@ import {
   addSubtask,
   updateSubtask,
   deleteSubtask,
-} from "@/services/indexedDbService";
-import { IGoal, ISubtask } from "@/types";
+  addJournalEntry,
+  updateJournalEntry,
+  deleteJournalEntry,
+} from "@/services/indexedDbService"; // Import journal entry functions
+import { IGoal, ISubtask, IJournalEntry } from "@/types"; // Import IJournalEntry
 import { toast } from "sonner";
 import { GoalDetailsDisplay } from "@/components/goals/GoalDetailsDisplay";
 import { GoalForm } from "@/components/goals/GoalForm";
@@ -25,10 +28,10 @@ import {
   Popover,
   PopoverContent,
   PopoverTrigger,
-} from "@/components/ui/popover"; // Added Popover imports
-import { Calendar } from "@/components/ui/calendar"; // Added Calendar import
-import { cn } from "@/lib/utils"; // Added cn for Calendar styling
-import { format, isPast, isBefore, differenceInDays, parseISO } from "date-fns"; // Added date-fns imports
+} from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { cn } from "@/lib/utils";
+import { format, isPast, isBefore, differenceInDays, parseISO } from "date-fns";
 import {
   PlusCircle,
   Trash2,
@@ -42,8 +45,11 @@ import {
   CalendarIcon,
   Clock,
   AlertCircle,
-} from "lucide-react"; // Added CalendarIcon, Clock, AlertCircle icons
+  BookOpen,
+  MessageSquare,
+} from "lucide-react"; // Added BookOpen, MessageSquare icons
 import { useConfirmDialog } from "@/lib/hooks/useConfirmProvider";
+import { RichTextEditor } from "@/components/ui/rich-text-editor"; // Import RichTextEditor
 
 export default function GoalDetailPage() {
   const router = useRouter();
@@ -57,7 +63,7 @@ export default function GoalDetailPage() {
   const [newSubtaskTitle, setNewSubtaskTitle] = useState("");
   const [newSubtaskTargetDate, setNewSubtaskTargetDate] = useState<
     Date | undefined
-  >(undefined); // New state for new subtask date
+  >(undefined);
   const [isAddingSubtask, startAddSubtaskTransition] = useTransition();
   const [isUpdatingSubtask, startUpdateSubtaskTransition] = useTransition();
   const [isDeletingSubtask, startDeleteSubtaskTransition] = useTransition();
@@ -66,6 +72,20 @@ export default function GoalDetailPage() {
   const [isArchivingGoal, startArchivingGoalTransition] = useTransition();
   const [isDeletingGoal, startDeletingGoalTransition] = useTransition();
   const [isSavingGoal, startSavingGoalTransition] = useTransition();
+
+  // Journaling states
+  const [newJournalEntryContent, setNewJournalEntryContent] = useState("");
+  const [editingJournalEntryId, setEditingJournalEntryId] = useState<
+    string | null
+  >(null);
+  const [editingJournalEntryContent, setEditingJournalEntryContent] =
+    useState("");
+  const [isAddingJournalEntry, startAddingJournalEntryTransition] =
+    useTransition();
+  const [isUpdatingJournalEntry, startUpdatingJournalEntryTransition] =
+    useTransition();
+  const [isDeletingJournalEntry, startDeletingJournalEntryTransition] =
+    useTransition();
 
   const confirm = useConfirmDialog();
 
@@ -92,7 +112,6 @@ export default function GoalDetailPage() {
         );
       } catch (err) {
         console.error("Failed to update main goal progress:", err);
-        // Optionally show a less intrusive toast or log this error
       }
     }
   };
@@ -105,7 +124,6 @@ export default function GoalDetailPage() {
         setGoal(fetchedGoal);
         const fetchedSubtasks = await getSubtasksForGoal(goalId);
         setSubtasks(fetchedSubtasks);
-        // Ensure initial progress is calculated
         updateMainGoalProgress(fetchedSubtasks);
       } else {
         toast.error("Goal not found", {
@@ -262,16 +280,16 @@ export default function GoalDetailPage() {
           goalId,
           title: newSubtaskTitle,
           isCompleted: false,
-          targetDate: format(newSubtaskTargetDate, "yyyy-MM-dd"), // Format date for storage
+          targetDate: format(newSubtaskTargetDate, "yyyy-MM-dd"),
         });
         const updatedSubtasks = [...subtasks, addedSubtask];
         setSubtasks(updatedSubtasks);
         setNewSubtaskTitle("");
-        setNewSubtaskTargetDate(undefined); // Clear date picker
+        setNewSubtaskTargetDate(undefined);
         toast.success("Subtask Added", {
           description: "New subtask has been added.",
         });
-        await updateMainGoalProgress(updatedSubtasks); // Recalculate and update main goal progress
+        await updateMainGoalProgress(updatedSubtasks);
       } catch (err) {
         console.error("Failed to add subtask:", err);
         toast.error("Failed to add subtask", {
@@ -295,7 +313,7 @@ export default function GoalDetailPage() {
         toast.success("Subtask Updated", {
           description: "Subtask completion status changed.",
         });
-        await updateMainGoalProgress(updatedSubtasks); // Recalculate and update main goal progress
+        await updateMainGoalProgress(updatedSubtasks);
       } catch (err) {
         console.error("Failed to update subtask:", err);
         toast.error("Subtask Update Failed", {
@@ -327,7 +345,7 @@ export default function GoalDetailPage() {
           toast.success("Subtask Deleted", {
             description: "Subtask has been permanently deleted.",
           });
-          await updateMainGoalProgress(updatedSubtasks); // Recalculate and update main goal progress
+          await updateMainGoalProgress(updatedSubtasks);
         } catch (err) {
           console.error("Failed to delete subtask:", err);
           toast.error("Subtask Deletion Failed", {
@@ -338,23 +356,141 @@ export default function GoalDetailPage() {
     }
   };
 
-  // Callback for when GoalForm successfully saves
-  const handleGoalSaved = (updatedGoal: IGoal) => {
-    startSavingGoalTransition(() => {
-      setGoal(updatedGoal); // Update the goal state with the new data
-      setIsEditing(false); // Switch back to display mode
-      // The toast is now handled by GoalForm for new goal creation, and here for update.
-      // No need for an extra toast here if GoalForm already shows one for successful save.
-      // However, per previous request, this toast remains for "Goal Saved" after update.
-      // To avoid double toast, the GoalForm's "Goal Updated" toast was removed.
+  // Journaling Functions
+  const handleAddJournalEntry = async () => {
+    if (!newJournalEntryContent.trim()) {
+      toast.error("Journal entry cannot be empty.");
+      return;
+    }
+    if (!goalId) {
+      toast.error("Cannot add journal entry: Goal ID is missing.");
+      return;
+    }
+
+    startAddingJournalEntryTransition(async () => {
+      try {
+        const updatedGoal = await addJournalEntry(
+          goalId,
+          newJournalEntryContent
+        );
+        if (updatedGoal) {
+          setGoal(updatedGoal);
+          setNewJournalEntryContent("");
+          toast.success("Journal Entry Added", {
+            description: "Your reflection has been saved.",
+          });
+        } else {
+          toast.error("Failed to add entry", {
+            description: "Could not add journal entry. Goal not found.",
+          });
+        }
+      } catch (err) {
+        console.error("Failed to add journal entry:", err);
+        toast.error("Failed to add entry", {
+          description: "Could not add journal entry. Please try again.",
+        });
+      }
     });
   };
 
-  // Function to get subtask status info
+  const handleEditJournalEntry = (entry: IJournalEntry) => {
+    setEditingJournalEntryId(entry.id);
+    setEditingJournalEntryContent(entry.content);
+  };
+
+  const handleSaveEditedJournalEntry = async (entryId: string) => {
+    if (!editingJournalEntryContent.trim()) {
+      toast.error("Journal entry cannot be empty.");
+      return;
+    }
+    if (!goalId) {
+      toast.error("Cannot update journal entry: Goal ID is missing.");
+      return;
+    }
+
+    startUpdatingJournalEntryTransition(async () => {
+      try {
+        const updatedGoal = await updateJournalEntry(
+          goalId,
+          entryId,
+          editingJournalEntryContent
+        );
+        if (updatedGoal) {
+          setGoal(updatedGoal);
+          setEditingJournalEntryId(null);
+          setEditingJournalEntryContent("");
+          toast.success("Journal Entry Updated", {
+            description: "Your reflection has been updated.",
+          });
+        } else {
+          toast.error("Failed to update entry", {
+            description:
+              "Could not update journal entry. Goal or entry not found.",
+          });
+        }
+      } catch (err) {
+        console.error("Failed to update journal entry:", err);
+        toast.error("Failed to update entry", {
+          description: "Could not update journal entry. Please try again.",
+        });
+      }
+    });
+  };
+
+  const handleDeleteJournalEntry = async (entryId: string) => {
+    const confirmed = await confirm({
+      title: "Delete Journal Entry",
+      message:
+        "Are you sure you want to delete this journal entry? This action cannot be undone.",
+      confirmText: "Delete",
+      cancelText: "Cancel",
+      variant: "destructive",
+      isConfirming: isDeletingJournalEntry,
+    });
+
+    if (confirmed) {
+      startDeletingJournalEntryTransition(async () => {
+        try {
+          const updatedGoal = await deleteJournalEntry(goalId, entryId);
+          if (updatedGoal) {
+            setGoal(updatedGoal);
+            toast.success("Journal Entry Deleted", {
+              description: "Your reflection has been deleted.",
+            });
+          } else {
+            toast.error("Failed to delete entry", {
+              description:
+                "Could not delete journal entry. Goal or entry not found.",
+            });
+          }
+        } catch (err) {
+          console.error("Failed to delete journal entry:", err);
+          toast.error("Failed to delete entry", {
+            description: "Could not delete journal entry. Please try again.",
+          });
+        }
+      });
+    }
+  };
+
+  const handleGoalSaved = (updatedGoal: IGoal) => {
+    startSavingGoalTransition(() => {
+      setGoal(updatedGoal);
+      setIsEditing(false);
+      toast.success("Goal Saved", {
+        description: "Your goal has been successfully saved.",
+      });
+    });
+  };
+
+  const handleCancelEdit = () => {
+    setIsEditing(false);
+  };
+
   const getSubtaskStatusInfo = (subtask: ISubtask) => {
     const target = parseISO(subtask.targetDate);
     const today = new Date();
-    today.setHours(0, 0, 0, 0); // Normalize today to start of day
+    today.setHours(0, 0, 0, 0);
 
     const daysDiff = differenceInDays(target, today);
 
@@ -421,6 +557,7 @@ export default function GoalDetailPage() {
           initialGoalData={goal}
           onGoalSaved={handleGoalSaved}
           isSaving={isSavingGoal}
+          onCancelEdit={handleCancelEdit}
         />
       ) : (
         <GoalDetailsDisplay goal={goal} />
@@ -503,8 +640,6 @@ export default function GoalDetailPage() {
                 className="flex items-center justify-between p-3 border rounded-md bg-card text-card-foreground shadow-sm"
               >
                 <div className="flex items-center gap-3 flex-wrap">
-                  {" "}
-                  {/* Added flex-wrap for responsiveness */}
                   {isEditing ? (
                     <Checkbox
                       id={`subtask-${subtask.id}`}
@@ -536,8 +671,7 @@ export default function GoalDetailPage() {
                   <span className="text-sm text-muted-foreground ml-2 flex items-center gap-1">
                     <CalendarIcon className="h-3 w-3" />
                     {format(parseISO(subtask.targetDate), "PPP")}
-                    {getSubtaskStatusInfo(subtask)}{" "}
-                    {/* Display subtask status info */}
+                    {getSubtaskStatusInfo(subtask)}
                   </span>
                 </div>
                 {isEditing && (
@@ -561,6 +695,139 @@ export default function GoalDetailPage() {
         )}
       </div>
 
+      {/* Journaling Section */}
+      <div className="space-y-6 pt-8 border-t mt-8">
+        <h3 className="text-2xl font-bold tracking-tight flex items-center gap-2">
+          <BookOpen className="h-6 w-6 text-primary" /> Journal & Reflection
+        </h3>
+        <p className="text-muted-foreground">
+          Reflect on your progress, challenges, and insights for this goal.
+        </p>
+
+        {/* Add New Journal Entry */}
+        <div className="space-y-3 p-4 border rounded-md bg-card text-card-foreground shadow-sm">
+          <h4 className="text-lg font-semibold">Add New Entry</h4>
+          <RichTextEditor
+            content={newJournalEntryContent}
+            onChange={setNewJournalEntryContent}
+            placeholder="Write your reflection here..."
+            disabled={isAddingJournalEntry}
+          />
+          <Button
+            onClick={handleAddJournalEntry}
+            disabled={isAddingJournalEntry || !newJournalEntryContent.trim()}
+            className="w-full sm:w-auto cursor-pointer"
+          >
+            {isAddingJournalEntry ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <PlusCircle className="mr-2 h-4 w-4" />
+            )}
+            Add Entry
+          </Button>
+        </div>
+
+        {/* List Existing Journal Entries */}
+        {goal.journalEntries && goal.journalEntries.length > 0 ? (
+          <ul className="space-y-4">
+            {goal.journalEntries
+              .sort((a, b) => b.createdAt - a.createdAt) // Sort by most recent first
+              .map((entry) => (
+                <li
+                  key={entry.id}
+                  className="p-4 border rounded-md bg-card text-card-foreground shadow-sm"
+                >
+                  {editingJournalEntryId === entry.id ? (
+                    // Edit mode for a journal entry
+                    <div className="space-y-3">
+                      <RichTextEditor
+                        content={editingJournalEntryContent}
+                        onChange={setEditingJournalEntryContent}
+                        disabled={isUpdatingJournalEntry}
+                      />
+                      <div className="flex justify-end gap-2">
+                        <Button
+                          variant="outline"
+                          onClick={() => {
+                            setEditingJournalEntryId(null);
+                            setEditingJournalEntryContent("");
+                          }}
+                          disabled={isUpdatingJournalEntry}
+                          className="cursor-pointer"
+                        >
+                          Cancel
+                        </Button>
+                        <Button
+                          onClick={() => handleSaveEditedJournalEntry(entry.id)}
+                          disabled={
+                            isUpdatingJournalEntry ||
+                            !editingJournalEntryContent.trim()
+                          }
+                          className="cursor-pointer"
+                        >
+                          {isUpdatingJournalEntry ? (
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          ) : null}
+                          Save
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    // Display mode for a journal entry
+                    <div className="space-y-2">
+                      <div
+                        className="prose dark:prose-invert max-w-none text-foreground leading-relaxed"
+                        dangerouslySetInnerHTML={{ __html: entry.content }}
+                      />
+                      <p className="text-sm text-muted-foreground text-right">
+                        Added: {format(new Date(entry.createdAt), "PPP HH:mm")}
+                        {entry.updatedAt > entry.createdAt &&
+                          ` | Updated: ${format(
+                            new Date(entry.updatedAt),
+                            "PPP HH:mm"
+                          )}`}
+                      </p>
+                      <div className="flex justify-end gap-2">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleEditJournalEntry(entry)}
+                          disabled={
+                            isUpdatingJournalEntry || isDeletingJournalEntry
+                          }
+                          className="cursor-pointer"
+                        >
+                          <Edit className="h-4 w-4 mr-1" /> Edit
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleDeleteJournalEntry(entry.id)}
+                          disabled={
+                            isUpdatingJournalEntry || isDeletingJournalEntry
+                          }
+                          className="text-destructive hover:text-destructive/80 cursor-pointer"
+                        >
+                          {isDeletingJournalEntry ? (
+                            <Loader2 className="h-4 w-4 animate-spin mr-1" />
+                          ) : (
+                            <Trash2 className="h-4 w-4 mr-1" />
+                          )}
+                          Delete
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </li>
+              ))}
+          </ul>
+        ) : (
+          <p className="text-muted-foreground">
+            No journal entries yet. Start reflecting on your goal!
+          </p>
+        )}
+      </div>
+
       {/* Action Buttons for Goal (visible based on mode) */}
       <div className="flex flex-col sm:flex-row justify-end gap-3 pt-6 border-t mt-8">
         {isEditing ? (
@@ -568,7 +835,7 @@ export default function GoalDetailPage() {
             <Button
               type="button"
               variant="outline"
-              onClick={() => setIsEditing(false)}
+              onClick={handleCancelEdit}
               disabled={isSavingGoal}
               className="cursor-pointer"
             >

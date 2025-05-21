@@ -1,15 +1,15 @@
 // src/app/(main)/dashboard/page.tsx
-"use client"; // Mark as a Client Component
+"use client";
 
 import { useEffect, useState, useTransition, useRef } from "react";
-import { IGoal, ISubtask } from "@/types"; // Import your goal interface
+import { IGoal, ISubtask } from "@/types";
 import {
   getGoals,
   deleteGoal,
   exportAllData,
   importAllData,
   updateGoal,
-} from "@/services/indexedDbService"; // Import updateGoal
+} from "@/services/indexedDbService";
 import {
   Card,
   CardContent,
@@ -33,6 +33,8 @@ import {
   CheckCircle2,
   RotateCcw,
   Search,
+  PlusCircle,
+  Goal,
 } from "lucide-react";
 import {
   Select,
@@ -44,7 +46,8 @@ import {
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { useConfirmDialog } from "@/lib/hooks/useConfirmProvider";
-import Fuse from "fuse.js"; // Import Fuse.js
+import Fuse from "fuse.js";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export default function DashboardPage() {
   const [goals, setGoals] = useState<IGoal[]>([]);
@@ -54,25 +57,22 @@ export default function DashboardPage() {
   const [isImporting, startImportTransition] = useTransition();
   const [isUpdatingStatus, startUpdatingStatusTransition] = useTransition();
 
-  // State for filtering and sorting
-  const [filterStatus, setFilterStatus] = useState<string>("all"); // 'all', 'active', 'completed', 'archived'
-  const [filterPriority, setFilterPriority] = useState<string>("all"); // 'all', 'low', 'medium', 'high'
-  const [sortBy, setSortBy] = useState<string>("createdAt"); // 'title', 'targetDate', 'createdAt'
-  const [sortOrder, setSortOrder] = useState<string>("desc"); // 'asc', 'desc'
-  const [searchQuery, setSearchQuery] = useState<string>(""); // State for search query
+  const [filterStatus, setFilterStatus] = useState<string>("all");
+  const [filterPriority, setFilterPriority] = useState<string>("all");
+  const [sortBy, setSortBy] = useState<string>("createdAt");
+  const [sortOrder, setSortOrder] = useState<string>("desc");
+  const [searchQuery, setSearchQuery] = useState<string>("");
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const confirm = useConfirmDialog();
 
-  // Fuse.js options for fuzzy searching
   const fuseOptions = {
-    keys: ["title", "description", "category"], // Fields to search in
-    threshold: 0.3, // Fuzziness threshold (0.0 = exact match, 1.0 = match anything)
-    includeScore: true, // Include score in results (optional, for debugging/ranking)
+    keys: ["title", "description", "category"],
+    threshold: 0.3,
+    includeScore: true,
   };
-  const fuse = new Fuse(goals, fuseOptions); // Initialize Fuse with all goals
+  const fuse = new Fuse(goals, fuseOptions);
 
-  // Function to fetch goals from IndexedDB
   const fetchGoals = async () => {
     setLoading(true);
     setError(null);
@@ -88,38 +88,28 @@ export default function DashboardPage() {
     }
   };
 
-  // Fetch goals on component mount
   useEffect(() => {
     fetchGoals();
   }, []);
 
-  // Filter and sort goals based on state
   const filteredAndSortedGoals = (() => {
     let currentGoals = goals;
 
-    // Apply search query filter using Fuse.js
     if (searchQuery.trim() !== "") {
       const searchResults = fuse.search(searchQuery.trim());
       currentGoals = searchResults.map((result) => result.item);
     }
 
-    // Apply status filter
     currentGoals = currentGoals.filter((goal) => {
       if (filterStatus !== "all" && goal.status !== filterStatus) {
         return false;
       }
-      return true;
-    });
-
-    // Apply priority filter
-    currentGoals = currentGoals.filter((goal) => {
       if (filterPriority !== "all" && goal.priority !== filterPriority) {
         return false;
       }
       return true;
     });
 
-    // Apply sorting
     return currentGoals.sort((a, b) => {
       let comparison = 0;
       if (sortBy === "title") {
@@ -133,7 +123,7 @@ export default function DashboardPage() {
 
       return sortOrder === "asc" ? comparison : -comparison;
     });
-  })(); // Use an IIFE for immediate execution and cleaner derived state
+  })();
 
   const handleExportData = () => {
     startExportTransition(async () => {
@@ -210,7 +200,7 @@ export default function DashboardPage() {
         }
 
         await importAllData(importedData);
-        await fetchGoals(); // Re-fetch goals to update the UI
+        await fetchGoals();
         toast.success("Import Successful", {
           description:
             "Your goals have been successfully imported and updated.",
@@ -230,7 +220,6 @@ export default function DashboardPage() {
     });
   };
 
-  // Helper function to determine goal status badge and days left
   const getGoalStatusBadge = (goal: IGoal) => {
     if (goal.status === "completed") {
       return <Badge variant="success">Completed</Badge>;
@@ -241,7 +230,7 @@ export default function DashboardPage() {
 
     const targetDate = new Date(goal.targetDate);
     const today = new Date();
-    today.setHours(0, 0, 0, 0); // Normalize today to start of day
+    today.setHours(0, 0, 0, 0);
 
     const daysRemaining = differenceInDays(targetDate, today);
 
@@ -260,7 +249,6 @@ export default function DashboardPage() {
       statusVariant = "destructive";
       StatusIcon = AlertCircle;
     } else if (daysRemaining <= 7 && daysRemaining >= 0) {
-      // Due within 7 days (inclusive of today)
       statusText =
         daysRemaining === 0
           ? "Due Today"
@@ -281,7 +269,6 @@ export default function DashboardPage() {
     );
   };
 
-  // New handler for marking goal status
   const handleToggleGoalStatus = async (
     goalId: string,
     currentStatus: IGoal["status"]
@@ -303,7 +290,6 @@ export default function DashboardPage() {
       startUpdatingStatusTransition(async () => {
         try {
           await updateGoal(goalId, { status: newStatus });
-          // Update the local state to reflect the change immediately
           setGoals((prevGoals) =>
             prevGoals.map((goal) =>
               goal.id === goalId
@@ -324,10 +310,33 @@ export default function DashboardPage() {
     }
   };
 
+  const renderSkeletons = () => (
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      {Array.from({ length: 6 }).map((_, i) => (
+        <Card key={i} className="flex flex-col h-full p-6 space-y-4">
+          <Skeleton className="h-6 w-3/4" />
+          <Skeleton className="h-4 w-1/2" />
+          <div className="flex-1 space-y-2">
+            <Skeleton className="h-4 w-2/3" />
+            <Skeleton className="h-4 w-1/3" />
+            <Skeleton className="h-4 w-full" />
+          </div>
+          <Skeleton className="h-8 w-full" />
+        </Card>
+      ))}
+    </div>
+  );
+
   if (loading) {
     return (
-      <div className="flex justify-center items-center h-64">
-        <p className="text-lg text-muted-foreground">Loading goals...</p>
+      <div className="space-y-6">
+        <h1 className="text-3xl font-bold tracking-tight">
+          Your Goals Dashboard
+        </h1>
+        <p className="text-muted-foreground">
+          Welcome to GoalFlow! Here you'll see an overview of all your goals.
+        </p>
+        {renderSkeletons()}
       </div>
     );
   }
@@ -487,15 +496,26 @@ export default function DashboardPage() {
       </p>
 
       {filteredAndSortedGoals.length === 0 ? (
-        <div className="p-6 border rounded-lg shadow-sm text-center text-muted-foreground">
-          {goals.length === 0
-            ? 'You haven\'t set any goals yet! Click "Add New Goal" in the header to get started.'
-            : "No goals match your current filters. Try adjusting them!"}
+        <div className="p-8 border-2 border-dashed rounded-lg text-center text-muted-foreground flex flex-col items-center justify-center space-y-4">
+          <Goal className="h-16 w-16 text-primary/60" />
+          <h3 className="text-xl font-semibold">No Goals Found</h3>
+          {goals.length === 0 ? (
+            <p>You haven't set any goals yet. Let's create your first one!</p>
+          ) : (
+            <p>
+              No goals match your current filters or search query. Try adjusting
+              them!
+            </p>
+          )}
+          <Button asChild className="mt-4">
+            <Link href="/goals/new">
+              <PlusCircle className="mr-2 h-4 w-4" /> Create New Goal
+            </Link>
+          </Button>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredAndSortedGoals.map((goal) => (
-            // Wrap the entire Card with Link
             <Link key={goal.id} href={`/goals/${goal.id}`} className="block">
               <Card className="flex flex-col h-full hover:shadow-lg transition-shadow duration-200 cursor-pointer">
                 <CardHeader>
@@ -503,7 +523,6 @@ export default function DashboardPage() {
                     <CardTitle className="text-xl font-semibold">
                       {goal.title}
                     </CardTitle>
-                    {/* Display goal status badge */}
                     {getGoalStatusBadge(goal)}
                   </div>
                   <CardDescription className="text-sm line-clamp-2">
@@ -524,19 +543,19 @@ export default function DashboardPage() {
                       <span>Progress</span>
                       <span>{goal.progress}%</span>
                     </div>
-                    <Progress value={goal.progress} className="w-full" />
+                    <Progress value={goal.progress} className="w-full h-2" />{" "}
+                    {/* Increased height */}
                   </div>
                 </CardContent>
                 <CardFooter className="flex justify-end pt-4">
-                  {/* New button to toggle goal status */}
                   <Button
                     variant={
                       goal.status === "completed" ? "secondary" : "default"
                     }
                     size="sm"
                     onClick={(e) => {
-                      e.preventDefault(); // Prevent navigating to goal details page
-                      e.stopPropagation(); // Stop event propagation
+                      e.preventDefault();
+                      e.stopPropagation();
                       handleToggleGoalStatus(goal.id, goal.status);
                     }}
                     disabled={isUpdatingStatus}

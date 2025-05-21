@@ -3,8 +3,16 @@
 
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { Goal, Sun, Moon } from "lucide-react"; // Adding Sun and Moon icons
+import { Goal, Sun, Moon, Menu } from "lucide-react"; // Adding Menu icon
 import { useTheme } from "next-themes"; // Import useTheme hook
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet"; // Import Sheet components
 
 export function Header() {
   const { theme, setTheme } = useTheme();
@@ -20,11 +28,16 @@ export function Header() {
             </span>
           </Link>
         </div>
-        <div className="flex items-center space-x-4">
+
+        {/* Desktop Navigation */}
+        <nav className="hidden md:flex items-center space-x-4">
+          <Button asChild variant="ghost" className="text-sm font-medium">
+            <Link href="/dashboard">Dashboard</Link>
+          </Button>
           <Button asChild className="px-4 py-2 text-sm font-medium">
             <Link href="/goals/new">Add New Goal</Link>
           </Button>
-          {/* Dark/Light Mode Toggle Button */}
+          {/* Dark/Light Mode Toggle Button for Desktop */}
           <Button
             variant="ghost"
             size="icon"
@@ -37,6 +50,54 @@ export function Header() {
               <Moon className="h-5 w-5" />
             )}
           </Button>
+        </nav>
+
+        {/* Mobile Navigation (Hamburger Menu) */}
+        <div className="md:hidden flex items-center space-x-2">
+          {/* Dark/Light Mode Toggle Button for Mobile */}
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+            aria-label="Toggle theme"
+          >
+            {theme === "dark" ? (
+              <Sun className="h-5 w-5" />
+            ) : (
+              <Moon className="h-5 w-5" />
+            )}
+          </Button>
+          <Sheet>
+            <SheetTrigger asChild>
+              <Button variant="ghost" size="icon" aria-label="Open menu">
+                <Menu className="h-6 w-6" />
+              </Button>
+            </SheetTrigger>
+            <SheetContent side="right" className="w-[250px] sm:w-[300px]">
+              <SheetHeader>
+                <SheetTitle className="flex items-center space-x-2">
+                  <Goal className="h-6 w-6 text-primary" />
+                  <span>GoalFlow</span>
+                </SheetTitle>
+                <SheetDescription>Your personal goal tracker.</SheetDescription>
+              </SheetHeader>
+              <nav className="flex flex-col gap-4 mt-6">
+                <Link
+                  href="/dashboard"
+                  className="text-lg font-medium hover:text-primary transition-colors"
+                >
+                  Dashboard
+                </Link>
+                <Link
+                  href="/goals/new"
+                  className="text-lg font-medium hover:text-primary transition-colors"
+                >
+                  Add New Goal
+                </Link>
+                {/* Add more mobile navigation links here if needed */}
+              </nav>
+            </SheetContent>
+          </Sheet>
         </div>
       </div>
     </header>

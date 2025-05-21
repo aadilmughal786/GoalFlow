@@ -1,5 +1,5 @@
 // src/app/(main)/goals/[id]/page.tsx
-"use client"; // This page will use client-side hooks to fetch data
+"use client";
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
@@ -7,7 +7,7 @@ import { getGoalById, deleteGoal } from "@/services/indexedDbService";
 import { IGoal } from "@/types";
 import { GoalForm } from "@/components/goals/GoalForm";
 import { SubtaskList } from "@/components/goals/SubtaskList";
-import { GoalDetailsDisplay } from "@/components/goals/GoalDetailsDisplay"; // Import the new component
+import { GoalDetailsDisplay } from "@/components/goals/GoalDetailsDisplay";
 import {
   Card,
   CardContent,
@@ -20,7 +20,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { useConfirmDialog } from "@/lib/hooks/useConfirmProvider";
-import { Trash2 } from "lucide-react"; // Import Trash2 icon
+import { Trash2 } from "lucide-react";
 
 export default function EditGoalPage() {
   const params = useParams();
@@ -29,7 +29,7 @@ export default function EditGoalPage() {
   const [goal, setGoal] = useState<IGoal | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
-  const [isEditing, setIsEditing] = useState<boolean>(false); // New state for view/edit mode
+  const [isEditing, setIsEditing] = useState<boolean>(false);
   const confirm = useConfirmDialog();
 
   useEffect(() => {
@@ -45,7 +45,7 @@ export default function EditGoalPage() {
         const fetchedGoal = await getGoalById(goalId);
         if (fetchedGoal) {
           setGoal(fetchedGoal);
-          setIsEditing(false); // Default to read-only view when page loads
+          setIsEditing(false);
         } else {
           setError("Goal not found.");
           toast.error("Goal Not Found", {
@@ -67,7 +67,6 @@ export default function EditGoalPage() {
     fetchGoal();
   }, [goalId, router]);
 
-  // Callback to update goal progress in this component's state
   const handleGoalProgressUpdate = (newProgress: number) => {
     setGoal((prevGoal) => {
       if (prevGoal) {
@@ -105,28 +104,49 @@ export default function EditGoalPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[calc(100vh-80px)] p-4 md:p-6 lg:p-8">
-        <Card className="w-full max-w-2xl">
-          <CardHeader>
-            <CardTitle className="text-2xl font-bold">
-              Loading Goal...
-            </CardTitle>
-            <CardDescription>
-              Please wait while we fetch the goal details.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <Skeleton className="h-8 w-3/4" />
-            <Skeleton className="h-24 w-full" />
-            <div className="grid grid-cols-2 gap-4">
-              <Skeleton className="h-10 w-full" />
-              <Skeleton className="h-10 w-full" />
+      <div className="flex items-start justify-center min-h-[calc(100vh-80px)] p-4 md:p-6 lg:p-8">
+        <div className="w-full max-w-2xl space-y-6">
+          {/* Goal Details/Form Skeleton */}
+          <Card className="w-full p-6 space-y-6">
+            <Skeleton className="h-8 w-3/4" /> {/* Title */}
+            <Skeleton className="h-4 w-1/2" /> {/* Description */}
+            <Skeleton className="h-24 w-full" /> {/* Textarea/Description */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <Skeleton className="h-10 w-full" /> {/* Date */}
+              <Skeleton className="h-10 w-full" /> {/* Category */}
             </div>
-            <Skeleton className="h-10 w-full" />
-            <Skeleton className="h-8 w-full" />
-            <Skeleton className="h-12 w-full" />
-          </CardContent>
-        </Card>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <Skeleton className="h-10 w-full" /> {/* Priority */}
+              <Skeleton className="h-10 w-full" /> {/* Status */}
+            </div>
+            <Skeleton className="h-8 w-full" /> {/* Progress label */}
+            <Skeleton className="h-4 w-full" /> {/* Progress bar */}
+            <Skeleton className="h-12 w-full" /> {/* Button */}
+          </Card>
+
+          {/* Subtask List Skeleton */}
+          <Card className="w-full p-6 space-y-4">
+            <Skeleton className="h-6 w-1/3" /> {/* Subtasks Title */}
+            <Skeleton className="h-4 w-2/3" /> {/* Subtasks Description */}
+            <div className="flex space-x-2 mb-4">
+              <Skeleton className="h-10 flex-1" /> {/* Input */}
+              <Skeleton className="h-10 w-20" /> {/* Button */}
+            </div>
+            <div className="space-y-3">
+              {Array.from({ length: 3 }).map((_, i) => (
+                <div
+                  key={i}
+                  className="flex items-center justify-between p-3 border rounded-md"
+                >
+                  <Skeleton className="h-5 w-5 rounded-sm" /> {/* Checkbox */}
+                  <Skeleton className="h-4 w-2/3 ml-3" /> {/* Subtask title */}
+                  <Skeleton className="h-8 w-8 rounded-full" />{" "}
+                  {/* Delete button */}
+                </div>
+              ))}
+            </div>
+          </Card>
+        </div>
       </div>
     );
   }
@@ -156,7 +176,6 @@ export default function EditGoalPage() {
       <div className="w-full max-w-2xl space-y-6">
         <Card>
           <CardHeader>
-            {/* Title changes based on mode */}
             <CardTitle className="text-2xl font-bold">
               {isEditing ? "Edit Goal" : "Goal Details"}
             </CardTitle>
@@ -178,20 +197,9 @@ export default function EditGoalPage() {
                 />
               ))}
           </CardContent>
-          {/* Only show delete button in CardFooter if in edit mode (or always if preferred) */}
-          {/* Keeping it always visible here for consistency with GoalDetailsDisplay's button */}
-          {!isEditing &&
-            goal && ( // Only show if not editing and goal is loaded
-              <CardFooter className="flex justify-end pt-4">
-                {/* The delete button is now part of GoalDetailsDisplay, so this can be removed or made conditional */}
-                {/* <Button variant="destructive" onClick={handleDeleteGoal}>
-                <Trash2 className="mr-2 h-4 w-4" /> Delete Goal
-              </Button> */}
-              </CardFooter>
-            )}
+          {/* No longer need a separate delete button here as it's in GoalDetailsDisplay */}
         </Card>
 
-        {/* Subtasks are always shown, regardless of view/edit mode */}
         {goal && (
           <SubtaskList
             goalId={goal.id}

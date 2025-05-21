@@ -6,7 +6,8 @@ import { useRouter } from "next/navigation";
 
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
+// import { Textarea } from '@/components/ui/textarea'; // Removed Textarea
+import { RichTextEditor } from "@/components/ui/rich-text-editor"; // Import RichTextEditor
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -25,7 +26,7 @@ import { Slider } from "@/components/ui/slider";
 import { cn } from "@/lib/utils";
 import { CalendarIcon } from "lucide-react";
 import { format, parseISO } from "date-fns";
-import { toast } from "sonner"; // Import toast directly from sonner
+import { toast } from "sonner";
 
 import { addGoal, updateGoal } from "@/services/indexedDbService";
 import { IGoal } from "@/types";
@@ -37,7 +38,6 @@ interface GoalFormProps {
 export function GoalForm({ initialGoalData }: GoalFormProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
-  // const { toast } = useToast(); // No longer needed with sonner
 
   const [formData, setFormData] = useState<
     Omit<IGoal, "id" | "createdAt" | "updatedAt">
@@ -45,7 +45,7 @@ export function GoalForm({ initialGoalData }: GoalFormProps) {
     if (initialGoalData) {
       return {
         title: initialGoalData.title,
-        description: initialGoalData.description || "",
+        description: initialGoalData.description || "", // Ensure description is an empty string if null/undefined
         targetDate: initialGoalData.targetDate,
         category: initialGoalData.category || "",
         priority: initialGoalData.priority,
@@ -96,11 +96,14 @@ export function GoalForm({ initialGoalData }: GoalFormProps) {
     }
   }, [initialGoalData]);
 
-  const handleInputChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
-  ) => {
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    // Changed event type
     const { id, value } = e.target;
     setFormData((prev) => ({ ...prev, [id]: value }));
+  };
+
+  const handleDescriptionChange = (html: string) => {
+    setFormData((prev) => ({ ...prev, description: html }));
   };
 
   const handleSelectChange = (id: "priority" | "status", value: string) => {
@@ -124,7 +127,6 @@ export function GoalForm({ initialGoalData }: GoalFormProps) {
 
     if (!formData.title || !formData.targetDate || !formData.priority) {
       toast.error("Missing Information", {
-        // Sonner error toast
         description:
           "Please fill in all required fields: Title, Target Date, and Priority.",
       });
@@ -136,13 +138,11 @@ export function GoalForm({ initialGoalData }: GoalFormProps) {
         if (initialGoalData?.id) {
           await updateGoal(initialGoalData.id, formData);
           toast.success("Goal Updated", {
-            // Sonner success toast
             description: "Your goal has been successfully updated.",
           });
         } else {
           await addGoal(formData);
           toast.success("Goal Created", {
-            // Sonner success toast
             description: "Your new goal has been successfully added.",
           });
         }
@@ -150,7 +150,6 @@ export function GoalForm({ initialGoalData }: GoalFormProps) {
       } catch (error) {
         console.error("Failed to save goal:", error);
         toast.error("Failed to save goal", {
-          // Sonner error toast
           description: `Failed to save goal: ${
             error instanceof Error ? error.message : "Unknown error"
           }. Please try again.`,
@@ -177,12 +176,10 @@ export function GoalForm({ initialGoalData }: GoalFormProps) {
 
       <div className="space-y-2">
         <Label htmlFor="description">Description (Optional)</Label>
-        <Textarea
-          id="description"
+        <RichTextEditor
+          content={formData.description || ""} // Pass current description
+          onChange={handleDescriptionChange} // Handle content changes
           placeholder="Provide more details about your goal..."
-          value={formData.description}
-          onChange={handleInputChange}
-          rows={3}
           disabled={isPending}
         />
       </div>

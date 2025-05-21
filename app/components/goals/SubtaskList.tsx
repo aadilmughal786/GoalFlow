@@ -2,20 +2,20 @@
 "use client";
 
 import { useState, useEffect, useTransition } from "react";
-import { ISubtask, IGoal } from "@/types"; // Changed import path for ISubtask, added IGoal
+import { ISubtask, IGoal } from "@/types";
 import {
   addSubtask,
   getSubtasksForGoal,
   updateSubtask,
   deleteSubtask,
-  getGoalById, // Added for progress calculation
-  updateGoal, // Added for progress calculation
+  getGoalById,
+  updateGoal,
 } from "@/services/indexedDbService";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
-import { Trash2, PlusCircle } from "lucide-react";
+import { Trash2, PlusCircle, ListTodo } from "lucide-react"; // Added ListTodo icon
 import {
   Card,
   CardContent,
@@ -26,11 +26,12 @@ import {
 } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
-import { useConfirmDialog } from "@/lib/hooks/useConfirmProvider"; // Import useConfirmDialog
+import { useConfirmDialog } from "@/lib/hooks/useConfirmProvider";
+import { Skeleton } from "@/components/ui/skeleton"; // Import Skeleton
 
 interface SubtaskListProps {
   goalId: string;
-  onProgressChange?: (newProgress: number) => void; // Callback for parent to update goal progress
+  onProgressChange?: (newProgress: number) => void;
 }
 
 export function SubtaskList({ goalId, onProgressChange }: SubtaskListProps) {
@@ -39,7 +40,7 @@ export function SubtaskList({ goalId, onProgressChange }: SubtaskListProps) {
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [isAdding, startAddingTransition] = useTransition();
-  const confirm = useConfirmDialog(); // Initialize useConfirmDialog hook
+  const confirm = useConfirmDialog();
 
   const calculateGoalProgress = (currentSubtasks: ISubtask[]): number => {
     if (currentSubtasks.length === 0) {
@@ -55,7 +56,7 @@ export function SubtaskList({ goalId, onProgressChange }: SubtaskListProps) {
     const newProgress = calculateGoalProgress(currentSubtasks);
     try {
       await updateGoal(goalId, { progress: newProgress });
-      onProgressChange?.(newProgress); // Notify parent component (e.g., GoalForm or Dashboard)
+      onProgressChange?.(newProgress);
       console.log(`Goal ${goalId} progress updated to ${newProgress}%`);
     } catch (err) {
       console.error(
@@ -79,7 +80,6 @@ export function SubtaskList({ goalId, onProgressChange }: SubtaskListProps) {
         return a.createdAt - b.createdAt;
       });
       setSubtasks(sortedSubtasks);
-      // Calculate and update parent goal progress after fetching subtasks
       await updateParentGoalProgress(sortedSubtasks);
     } catch (err) {
       console.error("Failed to fetch subtasks:", err);
@@ -187,19 +187,46 @@ export function SubtaskList({ goalId, onProgressChange }: SubtaskListProps) {
     }
   };
 
+  // Render Skeletons for loading state
+  const renderSubtaskSkeletons = () => (
+    <div className="space-y-3">
+      {Array.from({ length: 3 }).map(
+        (
+          _,
+          i // Render 3 skeleton subtasks
+        ) => (
+          <div
+            key={i}
+            className="flex items-center justify-between p-3 border rounded-md"
+          >
+            <Skeleton className="h-5 w-5 rounded-sm" /> {/* Checkbox */}
+            <Skeleton className="h-4 w-2/3 ml-3" /> {/* Subtask title */}
+            <Skeleton className="h-8 w-8 rounded-full" /> {/* Delete button */}
+          </div>
+        )
+      )}
+    </div>
+  );
+
   if (loading) {
     return (
-      <div className="flex justify-center items-center h-24">
-        <p className="text-muted-foreground">Loading subtasks...</p>
-      </div>
+      <Card className="mt-6 p-6 space-y-4">
+        <Skeleton className="h-6 w-1/3" /> {/* Subtasks Title */}
+        <Skeleton className="h-4 w-2/3" /> {/* Subtasks Description */}
+        <div className="flex space-x-2 mb-4">
+          <Skeleton className="h-10 flex-1" /> {/* Input */}
+          <Skeleton className="h-10 w-20" /> {/* Button */}
+        </div>
+        {renderSubtaskSkeletons()}
+      </Card>
     );
   }
 
   if (error) {
     return (
-      <div className="text-red-500 text-center py-4">
+      <Card className="mt-6 text-red-500 text-center py-4">
         <p>{error}</p>
-      </div>
+      </Card>
     );
   }
 
@@ -225,9 +252,11 @@ export function SubtaskList({ goalId, onProgressChange }: SubtaskListProps) {
         </form>
 
         {subtasks.length === 0 ? (
-          <p className="text-muted-foreground text-center py-4">
-            No subtasks added yet.
-          </p>
+          <div className="p-8 border-2 border-dashed rounded-lg text-center text-muted-foreground flex flex-col items-center justify-center space-y-4">
+            <ListTodo className="h-16 w-16 text-primary/60" />
+            <h3 className="text-xl font-semibold">No Subtasks Yet</h3>
+            <p>Add some steps to break down this goal!</p>
+          </div>
         ) : (
           <div className="space-y-3">
             {subtasks.map((subtask) => (

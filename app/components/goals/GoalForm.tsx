@@ -5,7 +5,6 @@ import { useState, useTransition, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { RichTextEditor } from "@/components/ui/rich-text-editor";
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -24,7 +23,7 @@ import { cn } from "@/lib/utils";
 import { CalendarIcon, Loader2 } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { toast } from "sonner";
-import dynamic from "next/dynamic"; // For dynamic import of Lucide icons
+import dynamic from "next/dynamic";
 
 import { addGoal, updateGoal } from "@/services/indexedDbService";
 import { IGoal } from "@/types";
@@ -33,7 +32,8 @@ import { IGoal } from "@/types";
 const DynamicLucideIcon = dynamic(
   async () => {
     const lucideIcons = await import("lucide-react");
-    return ({
+    // Define the component directly inside the async function
+    const IconRenderer = ({
       name,
       ...props
     }: { name: string } & React.SVGProps<SVGSVGElement>) => {
@@ -44,9 +44,58 @@ const DynamicLucideIcon = dynamic(
       // Fallback for emojis or invalid icon names
       return <span {...props}>{name}</span>;
     };
+    return IconRenderer; // Return the component itself
   },
   { ssr: false }
 );
+
+// Curated list of 20 relevant Lucide icons for goals
+const GOAL_ICONS = [
+  "Target",
+  "Rocket",
+  "CheckCircle2",
+  "Trophy",
+  "Book",
+  "Briefcase",
+  "Heart",
+  "Zap",
+  "Sparkles",
+  "Mountain",
+  "GraduationCap",
+  "Dumbbell",
+  "PiggyBank",
+  "Plane",
+  "Home",
+  "Code",
+  "Brush",
+  "Music",
+  "Camera",
+  "Shield",
+];
+
+// Curated list of predefined categories for goals
+const GOAL_CATEGORIES = [
+  "Personal Growth",
+  "Career & Work",
+  "Health & Fitness",
+  "Finance",
+  "Education",
+  "Relationships",
+  "Hobbies",
+  "Travel",
+  "Creativity",
+  "Community",
+  "Home & Living",
+  "Technology",
+  "Mindfulness",
+  "Learning",
+  "Side Project",
+  "Volunteering",
+  "Skill Development",
+  "Wellness",
+  "Adventure",
+  "Productivity",
+];
 
 interface GoalFormProps {
   initialGoalData?: IGoal;
@@ -65,29 +114,35 @@ export function GoalForm({
   const [isPending, startTransition] = useTransition();
 
   const [formData, setFormData] = useState<
-    Omit<IGoal, "id" | "createdAt" | "updatedAt" | "progress">
+    Omit<
+      IGoal,
+      | "id"
+      | "createdAt"
+      | "updatedAt"
+      | "progress"
+      | "description"
+      | "journalEntries"
+    >
   >(() => {
     if (initialGoalData) {
       return {
         title: initialGoalData.title,
         shortDescription: initialGoalData.shortDescription || "",
-        description: initialGoalData.description || "",
         targetDate: initialGoalData.targetDate,
         category: initialGoalData.category || "",
         priority: initialGoalData.priority,
         status: initialGoalData.status,
-        icon: initialGoalData.icon || "", // Initialize icon
+        icon: initialGoalData.icon || "",
       };
     }
     return {
       title: "",
       shortDescription: "",
-      description: "",
       targetDate: "",
-      category: "",
+      category: "", // Default to empty, will be required by select
       priority: "medium",
       status: "active",
-      icon: "", // Initialize icon
+      icon: "",
     };
   });
 
@@ -102,7 +157,6 @@ export function GoalForm({
       setFormData({
         title: initialGoalData.title,
         shortDescription: initialGoalData.shortDescription || "",
-        description: initialGoalData.description || "",
         targetDate: initialGoalData.targetDate,
         category: initialGoalData.category || "",
         priority: initialGoalData.priority,
@@ -114,7 +168,6 @@ export function GoalForm({
       setFormData({
         title: "",
         shortDescription: "",
-        description: "",
         targetDate: "",
         category: "",
         priority: "medium",
@@ -130,11 +183,11 @@ export function GoalForm({
     setFormData((prev) => ({ ...prev, [id]: value }));
   };
 
-  const handleDescriptionChange = (html: string) => {
-    setFormData((prev) => ({ ...prev, description: html }));
-  };
-
-  const handleSelectChange = (id: "priority" | "status", value: string) => {
+  // Updated handleSelectChange to accept 'category' as an ID
+  const handleSelectChange = (
+    id: "priority" | "status" | "icon" | "category",
+    value: string
+  ) => {
     setFormData((prev) => ({ ...prev, [id]: value }));
   };
 
@@ -149,10 +202,17 @@ export function GoalForm({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!formData.title || !formData.targetDate || !formData.priority) {
+    if (
+      !formData.title.trim() ||
+      !formData.shortDescription.trim() ||
+      !formData.targetDate ||
+      !formData.category.trim() || // Ensure category is selected
+      !formData.priority ||
+      !formData.icon.trim()
+    ) {
       toast.error("Missing Information", {
         description:
-          "Please fill in all required fields: Title, Target Date, and Priority.",
+          "Please fill in all required fields: Title, Short Description, Target Date, Category, Priority, and Icon.",
       });
       return;
     }
@@ -166,6 +226,8 @@ export function GoalForm({
           await updateGoal(initialGoalData.id, {
             ...formData,
             progress: initialGoalData.progress,
+            description: initialGoalData.description,
+            journalEntries: initialGoalData.journalEntries,
           });
           savedGoal = {
             ...initialGoalData,
@@ -173,7 +235,12 @@ export function GoalForm({
             updatedAt: Date.now(),
           };
         } else {
-          savedGoal = await addGoal({ ...formData, progress: 0 });
+          savedGoal = await addGoal({
+            ...formData,
+            progress: 0,
+            description: "",
+            journalEntries: [],
+          });
           toast.success("Goal Created", {
             description: "Your new goal has been successfully added.",
           });
@@ -209,59 +276,54 @@ export function GoalForm({
 
       <div className="space-y-2">
         <Label htmlFor="shortDescription">
-          Why is this goal important to you? (Short description for cards)
-        </Label>{" "}
-        {/* Updated prompt */}
+          Why is this goal important to you? (Short description for cards){" "}
+          <span className="text-red-500">*</span>
+        </Label>
         <Input
           id="shortDescription"
           placeholder="e.g., To enhance my web development skills and build exciting projects."
           value={formData.shortDescription}
           onChange={handleInputChange}
           maxLength={150}
+          required
           disabled={isSaving || isPending}
         />
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="icon">Goal Icon (Lucide icon name or emoji)</Label>
-        <div className="flex items-center gap-2">
-          <Input
-            id="icon"
-            placeholder="e.g., Target, Rocket, 🚀"
-            value={formData.icon}
-            onChange={handleInputChange}
-            maxLength={20}
-            disabled={isSaving || isPending}
-            className="flex-1"
-          />
-          {formData.icon && (
-            <div className="p-2 border rounded-md flex items-center justify-center h-10 w-10 text-primary">
-              <DynamicLucideIcon name={formData.icon} className="h-6 w-6" />
-            </div>
-          )}
-        </div>
-        <p className="text-xs text-muted-foreground">
-          Enter a{" "}
-          <a
-            href="https://lucide.dev/icons"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="underline"
-          >
-            Lucide React icon name
-          </a>{" "}
-          (e.g., `Rocket`, `Heart`, `Sparkles`) or an emoji.
-        </p>
-      </div>
-
-      <div className="space-y-2">
-        <Label htmlFor="description">Detailed Description (Optional)</Label>
-        <RichTextEditor
-          content={formData.description || ""}
-          onChange={handleDescriptionChange}
-          placeholder="Provide more details about your goal..."
+        <Label htmlFor="icon">
+          Goal Icon <span className="text-red-500">*</span>
+        </Label>
+        <Select
+          value={formData.icon}
+          onValueChange={(value: string) => handleSelectChange("icon", value)}
           disabled={isSaving || isPending}
-        />
+          required
+        >
+          <SelectTrigger className="w-full">
+            <SelectValue placeholder="Select an icon" />
+          </SelectTrigger>
+          <SelectContent>
+            {GOAL_ICONS.map((iconName) => (
+              <SelectItem key={iconName} value={iconName}>
+                <div className="flex items-center gap-2">
+                  <DynamicLucideIcon name={iconName} className="h-5 w-5" />
+                  <span>{iconName}</span>
+                </div>
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        {formData.icon && (
+          <p className="text-xs text-muted-foreground flex items-center gap-1 mt-2">
+            Selected Icon:{" "}
+            <DynamicLucideIcon
+              name={formData.icon}
+              className="h-4 w-4 text-primary"
+            />
+            <span className="font-medium">{formData.icon}</span>
+          </p>
+        )}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -296,14 +358,28 @@ export function GoalForm({
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="category">Category (Optional)</Label>
-          <Input
-            id="category"
-            placeholder="e.g., Career, Fitness"
+          <Label htmlFor="category">
+            Category <span className="text-red-500">*</span>
+          </Label>
+          <Select
             value={formData.category}
-            onChange={handleInputChange}
+            onValueChange={(value: string) =>
+              handleSelectChange("category", value)
+            }
             disabled={isSaving || isPending}
-          />
+            required
+          >
+            <SelectTrigger className="w-full">
+              <SelectValue placeholder="Select a category" />
+            </SelectTrigger>
+            <SelectContent>
+              {GOAL_CATEGORIES.map((categoryName) => (
+                <SelectItem key={categoryName} value={categoryName}>
+                  {categoryName}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
       </div>
 

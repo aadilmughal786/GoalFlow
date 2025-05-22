@@ -2,7 +2,6 @@
 import { ReactNode } from "react";
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
-import { FloatingActionButton } from "@/components/ui/floating-action-button"; // Import FAB
 
 export default function MainLayout({ children }: { children: ReactNode }) {
   return (
@@ -12,7 +11,6 @@ export default function MainLayout({ children }: { children: ReactNode }) {
         {children}
       </main>
       <Footer />
-      <FloatingActionButton /> {/* Add the FAB here */}
     </div>
   );
 }

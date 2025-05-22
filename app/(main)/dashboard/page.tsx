@@ -5,45 +5,35 @@ import { useEffect, useState, useTransition, useRef } from "react";
 import { IGoal, ISubtask, IIdea, IQuote } from "@/types"; // Import IIdea, IQuote
 import {
   getGoals,
-  deleteGoal,
   exportAllData,
   importAllData,
-  updateGoal,
   getQuotes,
 } from "@/services/indexedDbService"; // Import getQuotes
 import {
   Card,
   CardContent,
   CardDescription,
-  CardFooter,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
-import { format, isPast, isBefore, addDays, differenceInDays } from "date-fns";
+import { format, isPast, isBefore, differenceInDays } from "date-fns";
 import Link from "next/link";
 import {
-  Trash2,
-  Edit,
   Download,
   Upload,
   Clock,
   AlertCircle,
-  CheckCircle2,
-  RotateCcw,
   Search,
   PlusCircle,
-  ArchiveIcon,
-  UnarchiveIcon,
   MessageSquare,
   CalendarDays,
   Tag,
   ArrowUpCircle,
   Goal,
   Loader2,
-  Lightbulb,
   Quote as QuoteIcon,
 } from "lucide-react"; // Added Quote icon
 import {
@@ -59,6 +49,7 @@ import { useConfirmDialog } from "@/lib/hooks/useConfirmProvider";
 import Fuse from "fuse.js";
 import { Skeleton } from "@/components/ui/skeleton";
 import dynamic from "next/dynamic"; // For dynamic import of Lucide icons
+import { FloatingActionButton } from "@/components/ui/floating-action-button";
 
 // Dynamically import all Lucide icons to be able to render them by string name
 const DynamicLucideIcon = dynamic(
@@ -79,6 +70,30 @@ const DynamicLucideIcon = dynamic(
   { ssr: false }
 );
 
+// Curated list of predefined categories for goals (duplicated for dashboard)
+const GOAL_CATEGORIES = [
+  "Personal Growth",
+  "Career & Work",
+  "Health & Fitness",
+  "Finance",
+  "Education",
+  "Relationships",
+  "Hobbies",
+  "Travel",
+  "Creativity",
+  "Community",
+  "Home & Living",
+  "Technology",
+  "Mindfulness",
+  "Learning",
+  "Side Project",
+  "Volunteering",
+  "Skill Development",
+  "Wellness",
+  "Adventure",
+  "Productivity",
+];
+
 export default function DashboardPage() {
   const [goals, setGoals] = useState<IGoal[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -91,11 +106,12 @@ export default function DashboardPage() {
 
   const [filterStatus, setFilterStatus] = useState<string>("active");
   const [filterPriority, setFilterPriority] = useState<string>("all");
+  const [filterCategory, setFilterCategory] = useState<string>("all"); // New state for category filter
   const [sortBy, setSortBy] = useState<string>("createdAt");
   const [sortOrder, setSortOrder] = useState<string>("desc");
   const [searchQuery, setSearchQuery] = useState<string>("");
 
-  const [currentQuote, setCurrentQuote] = useState<IQuote | null>(null); // New state for current quote
+  const [currentQuote, setCurrentQuote] = useState<IQuote | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const confirm = useConfirmDialog();
@@ -191,6 +207,10 @@ export default function DashboardPage() {
         return false;
       }
       if (filterPriority !== "all" && goal.priority !== filterPriority) {
+        return false;
+      }
+      // New: Filter by category
+      if (filterCategory !== "all" && goal.category !== filterCategory) {
         return false;
       }
       return true;
@@ -414,307 +434,350 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row justify-between items-center flex-wrap gap-4">
-        <h1 className="text-3xl font-bold tracking-tight">
-          Your Goals Dashboard
-        </h1>
-        <div className="flex gap-2">
-          <Button
-            onClick={handleExportData}
-            disabled={isExporting || goals.length === 0 || isImporting}
-            className="cursor-pointer"
-          >
-            {isExporting ? (
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            ) : (
-              <Download className="mr-2 h-4 w-4" />
-            )}
-            {isExporting ? "Exporting..." : "Export Data"}
-          </Button>
-          <input
-            type="file"
-            ref={fileInputRef}
-            onChange={handleFileChange}
-            accept=".json"
-            className="hidden"
-          />
-          <Button
-            onClick={handleImportButtonClick}
-            disabled={isImporting || isExporting}
-            className="cursor-pointer"
-          >
-            {isImporting ? (
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            ) : (
-              <Upload className="mr-2 h-4 w-4" />
-            )}
-            {isImporting ? "Importing..." : "Import Data"}
-          </Button>
+    <>
+      <FloatingActionButton />
+      <div className="space-y-6">
+        <div className="flex flex-col sm:flex-row justify-between items-center flex-wrap gap-4">
+          <h1 className="text-3xl font-bold tracking-tight">
+            Your Goals Dashboard
+          </h1>
+          <div className="flex gap-2">
+            <Button
+              onClick={handleExportData}
+              disabled={isExporting || goals.length === 0 || isImporting}
+              className="cursor-pointer"
+            >
+              {isExporting ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Download className="mr-2 h-4 w-4" />
+              )}
+              {isExporting ? "Exporting..." : "Export Data"}
+            </Button>
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={handleFileChange}
+              accept=".json"
+              className="hidden"
+            />
+            <Button
+              onClick={handleImportButtonClick}
+              disabled={isImporting || isExporting}
+              className="cursor-pointer"
+            >
+              {isImporting ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Upload className="mr-2 h-4 w-4" />
+              )}
+              {isImporting ? "Importing..." : "Import Data"}
+            </Button>
+          </div>
         </div>
-      </div>
 
-      <div className="flex flex-col gap-4 p-4 border rounded-lg bg-card text-card-foreground shadow-sm">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="flex items-center gap-2">
-            <label
-              htmlFor="filter-status"
-              className="text-sm font-medium whitespace-nowrap"
-            >
-              Status:
-            </label>
-            <Select
-              value={filterStatus}
-              onValueChange={setFilterStatus}
-              disabled={loading || error !== null}
-            >
-              <SelectTrigger
-                id="filter-status"
-                className="w-full cursor-pointer"
+        <div className="flex flex-col gap-4 p-4 border rounded-lg bg-card text-card-foreground shadow-sm">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="flex items-center gap-2">
+              <label
+                htmlFor="filter-status"
+                className="text-sm font-medium whitespace-nowrap"
               >
-                <SelectValue placeholder="All Statuses" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Statuses</SelectItem>
-                <SelectItem value="active">Active</SelectItem>
-                <SelectItem value="completed">Completed</SelectItem>
-                <SelectItem value="archived">Archived</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <label
-              htmlFor="filter-priority"
-              className="text-sm font-medium whitespace-nowrap"
-            >
-              Priority:
-            </label>
-            <Select
-              value={filterPriority}
-              onValueChange={setFilterPriority}
-              disabled={loading || error !== null}
-            >
-              <SelectTrigger
-                id="filter-priority"
-                className="w-full cursor-pointer"
+                Status:
+              </label>
+              <Select
+                value={filterStatus}
+                onValueChange={setFilterStatus}
+                disabled={loading || error !== null}
               >
-                <SelectValue placeholder="All Priorities" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Priorities</SelectItem>
-                <SelectItem value="low">Low</SelectItem>
-                <SelectItem value="medium">Medium</SelectItem>
-                <SelectItem value="high">High</SelectItem>
-              </SelectContent>
-            </Select>
+                <SelectTrigger
+                  id="filter-status"
+                  className="w-full cursor-pointer"
+                >
+                  <SelectValue placeholder="All Statuses" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Statuses</SelectItem>
+                  <SelectItem value="active">Active</SelectItem>
+                  <SelectItem value="completed">Completed</SelectItem>
+                  <SelectItem value="archived">Archived</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <label
+                htmlFor="filter-priority"
+                className="text-sm font-medium whitespace-nowrap"
+              >
+                Priority:
+              </label>
+              <Select
+                value={filterPriority}
+                onValueChange={setFilterPriority}
+                disabled={loading || error !== null}
+              >
+                <SelectTrigger
+                  id="filter-priority"
+                  className="w-full cursor-pointer"
+                >
+                  <SelectValue placeholder="All Priorities" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Priorities</SelectItem>
+                  <SelectItem value="low">Low</SelectItem>
+                  <SelectItem value="medium">Medium</SelectItem>
+                  <SelectItem value="high">High</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* New: Category Filter */}
+            <div className="flex items-center gap-2">
+              <label
+                htmlFor="filter-category"
+                className="text-sm font-medium whitespace-nowrap"
+              >
+                Category:
+              </label>
+              <Select
+                value={filterCategory}
+                onValueChange={setFilterCategory}
+                disabled={loading || error !== null}
+              >
+                <SelectTrigger
+                  id="filter-category"
+                  className="w-full cursor-pointer"
+                >
+                  <SelectValue placeholder="All Categories" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Categories</SelectItem>
+                  {GOAL_CATEGORIES.map((category) => (
+                    <SelectItem key={category} value={category}>
+                      {category}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <label
+                htmlFor="sort-by"
+                className="text-sm font-medium whitespace-nowrap"
+              >
+                Sort By:
+              </label>
+              <Select
+                value={sortBy}
+                onValueChange={setSortBy}
+                disabled={loading || error !== null}
+              >
+                <SelectTrigger id="sort-by" className="w-full cursor-pointer">
+                  <SelectValue placeholder="Sort By" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="title">Title</SelectItem>
+                  <SelectItem value="targetDate">Target Date</SelectItem>
+                  <SelectItem value="createdAt">Created Date</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <label
+                htmlFor="sort-order"
+                className="text-sm font-medium whitespace-nowrap"
+              >
+                Order:
+              </label>
+              <Select
+                value={sortOrder}
+                onValueChange={setSortOrder}
+                disabled={loading || error !== null}
+              >
+                <SelectTrigger
+                  id="sort-order"
+                  className="w-full cursor-pointer"
+                >
+                  <SelectValue placeholder="Order" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="asc">Ascending</SelectItem>
+                  <SelectItem value="desc">Descending</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
-          <div className="flex items-center gap-2">
-            <label
-              htmlFor="sort-by"
-              className="text-sm font-medium whitespace-nowrap"
-            >
-              Sort By:
-            </label>
-            <Select
-              value={sortBy}
-              onValueChange={setSortBy}
+          <div className="flex items-center gap-2 w-full">
+            <Search className="h-5 w-5 text-muted-foreground" />
+            <Input
+              type="text"
+              placeholder="Search goals by title, short description, or category..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="flex-1"
               disabled={loading || error !== null}
-            >
-              <SelectTrigger id="sort-by" className="w-full cursor-pointer">
-                <SelectValue placeholder="Sort By" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="title">Title</SelectItem>
-                <SelectItem value="targetDate">Target Date</SelectItem>
-                <SelectItem value="createdAt">Created Date</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <label
-              htmlFor="sort-order"
-              className="text-sm font-medium whitespace-nowrap"
-            >
-              Order:
-            </label>
-            <Select
-              value={sortOrder}
-              onValueChange={setSortOrder}
-              disabled={loading || error !== null}
-            >
-              <SelectTrigger id="sort-order" className="w-full cursor-pointer">
-                <SelectValue placeholder="Order" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="asc">Ascending</SelectItem>
-                <SelectItem value="desc">Descending</SelectItem>
-              </SelectContent>
-            </Select>
+            />
           </div>
         </div>
 
-        <div className="flex items-center gap-2 w-full">
-          <Search className="h-5 w-5 text-muted-foreground" />
-          <Input
-            type="text"
-            placeholder="Search goals by title, short description, or category..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="flex-1"
-            disabled={loading || error !== null}
-          />
-        </div>
-      </div>
+        {currentQuote && (
+          <Card className="p-6 text-center bg-gradient-to-r from-primary/10 to-accent/10 border border-primary/20 shadow-md">
+            <CardContent className="p-0 space-y-3">
+              <QuoteIcon className="h-8 w-8 text-primary mx-auto" />
+              <p className="text-xl italic font-semibold text-foreground leading-relaxed">
+                &ldquo;{currentQuote.text}&rdquo;
+              </p>
+              {currentQuote.author && (
+                <p className="text-sm text-muted-foreground">
+                  - {currentQuote.author}
+                </p>
+              )}
+            </CardContent>
+          </Card>
+        )}
 
-      {currentQuote && (
-        <Card className="p-6 text-center bg-gradient-to-r from-primary/10 to-accent/10 border border-primary/20 shadow-md">
-          <CardContent className="p-0 space-y-3">
-            <QuoteIcon className="h-8 w-8 text-primary mx-auto" />
-            <p className="text-xl italic font-semibold text-foreground leading-relaxed">
-              &ldquo;{currentQuote.text}&rdquo;
-            </p>
-            {currentQuote.author && (
-              <p className="text-sm text-muted-foreground">
-                - {currentQuote.author}
+        <p className="text-muted-foreground">
+          Welcome to GoalFlow! Here you'll see an overview of all your goals.
+        </p>
+
+        {filteredAndSortedGoals.length === 0 ? (
+          <div className="p-8 border-2 border-dashed rounded-lg text-center text-muted-foreground flex flex-col items-center justify-center space-y-4">
+            <Goal className="h-16 w-16 text-primary/60" />
+            <h3 className="text-xl font-semibold">No Goals Found</h3>
+            {goals.length === 0 ? (
+              <p>You haven't set any goals yet. Let's create your first one!</p>
+            ) : (
+              <p>
+                No goals match your current filters or search query. Try
+                adjusting them!
               </p>
             )}
-          </CardContent>
-        </Card>
-      )}
+            <Button asChild className="mt-4 cursor-pointer">
+              <Link href="/goals/new">
+                <PlusCircle className="mr-2 h-4 w-4" /> Create New Goal
+              </Link>
+            </Button>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {filteredAndSortedGoals.map((goal) => {
+              const statusBadge = getGoalStatusBadge(goal);
 
-      <p className="text-muted-foreground">
-        Welcome to GoalFlow! Here you'll see an overview of all your goals.
-      </p>
+              const targetDate = new Date(goal.targetDate);
+              const today = new Date();
+              today.setHours(0, 0, 0, 0);
+              const daysRemaining = differenceInDays(targetDate, today);
 
-      {filteredAndSortedGoals.length === 0 ? (
-        <div className="p-8 border-2 border-dashed rounded-lg text-center text-muted-foreground flex flex-col items-center justify-center space-y-4">
-          <Goal className="h-16 w-16 text-primary/60" />
-          <h3 className="text-xl font-semibold">No Goals Found</h3>
-          {goals.length === 0 ? (
-            <p>You haven't set any goals yet. Let's create your first one!</p>
-          ) : (
-            <p>
-              No goals match your current filters or search query. Try adjusting
-              them!
-            </p>
-          )}
-          <Button asChild className="mt-4 cursor-pointer">
-            <Link href="/goals/new">
-              <PlusCircle className="mr-2 h-4 w-4" /> Create New Goal
-            </Link>
-          </Button>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredAndSortedGoals.map((goal) => {
-            const statusBadge = getGoalStatusBadge(goal);
-
-            const targetDate = new Date(goal.targetDate);
-            const today = new Date();
-            today.setHours(0, 0, 0, 0);
-            const daysRemaining = differenceInDays(targetDate, today);
-
-            let daysLeftDisplay = null;
-            if (goal.status === "active") {
-              if (isPast(targetDate) && isBefore(targetDate, today)) {
-                daysLeftDisplay = (
-                  <span className="text-destructive text-xs font-medium ml-1">
-                    ({Math.abs(daysRemaining)} day
-                    {Math.abs(daysRemaining) === 1 ? "" : "s"} ago)
-                  </span>
-                );
-              } else if (daysRemaining === 0) {
-                daysLeftDisplay = (
-                  <span className="text-yellow-600 dark:text-yellow-400 text-xs font-medium ml-1">
-                    (Due Today)
-                  </span>
-                );
-              } else if (daysRemaining > 0) {
-                daysLeftDisplay = (
-                  <span className="text-muted-foreground text-xs font-medium ml-1">
-                    ({daysRemaining} day{daysRemaining === 1 ? "" : "s"} left)
-                  </span>
-                );
+              let daysLeftDisplay = null;
+              if (goal.status === "active") {
+                if (isPast(targetDate) && isBefore(targetDate, today)) {
+                  daysLeftDisplay = (
+                    <span className="text-destructive text-xs font-medium ml-1">
+                      ({Math.abs(daysRemaining)} day
+                      {Math.abs(daysRemaining) === 1 ? "" : "s"} ago)
+                    </span>
+                  );
+                } else if (daysRemaining === 0) {
+                  daysLeftDisplay = (
+                    <span className="text-yellow-600 dark:text-yellow-400 text-xs font-medium ml-1">
+                      (Due Today)
+                    </span>
+                  );
+                } else if (daysRemaining > 0) {
+                  daysLeftDisplay = (
+                    <span className="text-muted-foreground text-xs font-medium ml-1">
+                      ({daysRemaining} day{daysRemaining === 1 ? "" : "s"} left)
+                    </span>
+                  );
+                }
               }
-            }
 
-            return (
-              <Link key={goal.id} href={`/goals/${goal.id}`} className="block">
-                <Card className="flex flex-col h-full hover:shadow-lg transition-shadow duration-200 cursor-pointer border border-border overflow-hidden">
-                  <CardHeader className="p-4 pb-0">
-                    <div className="flex justify-between items-start gap-2">
-                      <div className="flex items-center gap-2">
-                        {goal.icon && (
-                          <div className="flex-shrink-0 text-primary">
-                            <DynamicLucideIcon
-                              name={goal.icon}
-                              className="h-5 w-5"
-                            />
+              return (
+                <Link
+                  key={goal.id}
+                  href={`/goals/${goal.id}`}
+                  className="block"
+                >
+                  <Card className="flex flex-col h-full hover:shadow-lg transition-shadow duration-200 cursor-pointer border border-border overflow-hidden">
+                    <CardHeader className="p-4 pb-0">
+                      <div className="flex justify-between items-start gap-2">
+                        <div className="flex items-center gap-2">
+                          {goal.icon && (
+                            <div className="flex-shrink-0 text-primary">
+                              <DynamicLucideIcon
+                                name={goal.icon}
+                                className="h-5 w-5"
+                              />
+                            </div>
+                          )}
+                          <CardTitle className="text-xl font-semibold leading-tight text-foreground">
+                            {goal.title}
+                          </CardTitle>
+                        </div>
+                        {statusBadge}
+                      </div>
+                      {goal.shortDescription && (
+                        <CardDescription className="text-sm text-muted-foreground line-clamp-2 mt-2">
+                          <span className="flex items-center gap-1">
+                            <MessageSquare className="h-3 w-3 flex-shrink-0" />
+                            {goal.shortDescription}
+                          </span>
+                        </CardDescription>
+                      )}
+                    </CardHeader>
+                    <CardContent className="flex-1 p-4 pt-3 space-y-3">
+                      <div className="space-y-2 text-sm text-muted-foreground">
+                        <div className="flex items-center gap-2">
+                          <CalendarDays className="h-4 w-4 flex-shrink-0" />
+                          <span>
+                            Target: {format(new Date(goal.targetDate), "PPP")}
+                          </span>
+                          {daysLeftDisplay}
+                        </div>
+                        {goal.category && (
+                          <div className="flex items-center gap-2">
+                            <Tag className="h-4 w-4 flex-shrink-0" />
+                            <Badge variant="outline">{goal.category}</Badge>
                           </div>
                         )}
-                        <CardTitle className="text-xl font-semibold leading-tight text-foreground">
-                          {goal.title}
-                        </CardTitle>
-                      </div>
-                      {statusBadge}
-                    </div>
-                    {goal.shortDescription && (
-                      <CardDescription className="text-sm text-muted-foreground line-clamp-2 mt-2">
-                        <span className="flex items-center gap-1">
-                          <MessageSquare className="h-3 w-3 flex-shrink-0" />
-                          {goal.shortDescription}
-                        </span>
-                      </CardDescription>
-                    )}
-                  </CardHeader>
-                  <CardContent className="flex-1 p-4 pt-3 space-y-3">
-                    <div className="space-y-2 text-sm text-muted-foreground">
-                      <div className="flex items-center gap-2">
-                        <CalendarDays className="h-4 w-4 flex-shrink-0" />
-                        <span>
-                          Target: {format(new Date(goal.targetDate), "PPP")}
-                        </span>
-                        {daysLeftDisplay}
-                      </div>
-                      {goal.category && (
                         <div className="flex items-center gap-2">
-                          <Tag className="h-4 w-4 flex-shrink-0" />
-                          <Badge variant="outline">{goal.category}</Badge>
+                          <ArrowUpCircle className="h-4 w-4 flex-shrink-0" />
+                          <Badge
+                            variant={
+                              goal.priority === "high"
+                                ? "destructive"
+                                : goal.priority === "medium"
+                                ? "default"
+                                : "secondary"
+                            }
+                          >
+                            {goal.priority.charAt(0).toUpperCase() +
+                              goal.priority.slice(1)}
+                          </Badge>
                         </div>
-                      )}
-                      <div className="flex items-center gap-2">
-                        <ArrowUpCircle className="h-4 w-4 flex-shrink-0" />
-                        <Badge
-                          variant={
-                            goal.priority === "high"
-                              ? "destructive"
-                              : goal.priority === "medium"
-                              ? "default"
-                              : "secondary"
-                          }
-                        >
-                          {goal.priority.charAt(0).toUpperCase() +
-                            goal.priority.slice(1)}
-                        </Badge>
                       </div>
-                    </div>
-                    <div className="space-y-1 mt-4">
-                      <div className="flex justify-between text-sm text-foreground">
-                        <span>Progress</span>
-                        <span>{goal.progress}%</span>
+                      <div className="space-y-1 mt-4">
+                        <div className="flex justify-between text-sm text-foreground">
+                          <span>Progress</span>
+                          <span>{goal.progress}%</span>
+                        </div>
+                        <Progress
+                          value={goal.progress}
+                          className="w-full h-2"
+                        />
                       </div>
-                      <Progress value={goal.progress} className="w-full h-2" />
-                    </div>
-                  </CardContent>
-                </Card>
-              </Link>
-            );
-          })}
-        </div>
-      )}
-    </div>
+                    </CardContent>
+                  </Card>
+                </Link>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </>
   );
 }

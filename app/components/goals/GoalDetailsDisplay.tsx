@@ -15,7 +15,9 @@ import {
   AlertCircle,
   Clock,
 } from "lucide-react";
-import dynamic from "next/dynamic"; // For dynamic import of Lucide icons
+import dynamic from "next/dynamic";
+// Removed: import MarkdownPreview from '@uiw/react-markdown-preview'; // No longer needed
+// Removed: import { useTheme } from "next-themes"; // No longer needed
 
 // Dynamically import all Lucide icons to be able to render them by string name
 const DynamicLucideIcon = dynamic(
@@ -41,6 +43,8 @@ interface GoalDetailsDisplayProps {
 }
 
 export function GoalDetailsDisplay({ goal }: GoalDetailsDisplayProps) {
+  // Removed: const { theme } = useTheme(); // No longer needed
+
   // Calculate days left for main goal
   const targetDate = new Date(goal.targetDate);
   const today = new Date();
@@ -95,18 +99,7 @@ export function GoalDetailsDisplay({ goal }: GoalDetailsDisplayProps) {
         </div>
       )}
 
-      {goal.description && (
-        <div className="space-y-2">
-          <h3 className="text-lg font-semibold flex items-center gap-2">
-            <Info className="h-4 w-4 text-muted-foreground" /> Detailed
-            Description
-          </h3>
-          <div
-            className="prose dark:prose-invert max-w-none p-4 border rounded-md bg-background/50 text-foreground leading-relaxed"
-            dangerouslySetInnerHTML={{ __html: goal.description }}
-          />
-        </div>
-      )}
+      {/* Removed Detailed Description section */}
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="space-y-2">

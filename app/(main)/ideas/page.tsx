@@ -34,7 +34,8 @@ import {
   ArrowRightCircle,
   Scale,
   Zap,
-} from "lucide-react"; // Added Scale, Zap icons
+  CheckCircle2, // Added for converted badge
+} from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { format, addDays } from "date-fns";
 import {
@@ -43,8 +44,8 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select"; // Import Select components
-import { Label } from "@/components/ui/label"; // Import Label
+} from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import Link from "next/link";
 
@@ -55,16 +56,17 @@ export default function IdeasPage() {
   const [error, setError] = useState<string | null>(null);
 
   const [newIdeaContent, setNewIdeaContent] = useState("");
-  const [newIdeaEffort, setNewIdeaEffort] = useState<IIdea["effort"]>(""); // New state for new idea effort
-  const [newIdeaImpact, setNewIdeaImpact] = useState<IIdea["impact"]>(""); // New state for new idea impact
+  // Set default values for new idea effort and impact
+  const [newIdeaEffort, setNewIdeaEffort] = useState<IIdea["effort"]>("medium");
+  const [newIdeaImpact, setNewIdeaImpact] = useState<IIdea["impact"]>("medium");
   const [isAddingIdea, startAddingIdeaTransition] = useTransition();
 
   const [editingIdeaId, setEditingIdeaId] = useState<string | null>(null);
   const [editingIdeaContent, setEditingIdeaContent] = useState("");
   const [editingIdeaEffort, setEditingIdeaEffort] =
-    useState<IIdea["effort"]>(""); // New state for editing idea effort
+    useState<IIdea["effort"]>("");
   const [editingIdeaImpact, setEditingIdeaImpact] =
-    useState<IIdea["impact"]>(""); // New state for editing idea impact
+    useState<IIdea["impact"]>("");
   const [isUpdatingIdea, startUpdatingIdeaTransition] = useTransition();
 
   const [isDeletingIdea, startDeletingIdeaTransition] = useTransition();
@@ -112,10 +114,10 @@ export default function IdeasPage() {
           content: newIdeaContent,
           effort: newIdeaEffort,
           impact: newIdeaImpact,
-        }); // Pass new fields
+        });
         setNewIdeaContent("");
-        setNewIdeaEffort(""); // Clear new idea effort
-        setNewIdeaImpact(""); // Clear new idea impact
+        setNewIdeaEffort("medium"); // Reset to default
+        setNewIdeaImpact("medium"); // Reset to default
         toast.success("Idea Added", {
           description: "Your new idea has been saved.",
         });
@@ -129,11 +131,17 @@ export default function IdeasPage() {
     });
   };
 
+  const handleClearNewIdeaForm = () => {
+    setNewIdeaContent("");
+    setNewIdeaEffort("medium");
+    setNewIdeaImpact("medium");
+  };
+
   const handleEditIdea = (idea: IIdea) => {
     setEditingIdeaId(idea.id);
     setEditingIdeaContent(idea.content);
-    setEditingIdeaEffort(idea.effort); // Set editing effort
-    setEditingIdeaImpact(idea.impact); // Set editing impact
+    setEditingIdeaEffort(idea.effort);
+    setEditingIdeaImpact(idea.impact);
   };
 
   const handleSaveEditedIdea = async (ideaId: string) => {
@@ -148,11 +156,11 @@ export default function IdeasPage() {
           content: editingIdeaContent,
           effort: editingIdeaEffort,
           impact: editingIdeaImpact,
-        }); // Update new fields
+        });
         setEditingIdeaId(null);
         setEditingIdeaContent("");
-        setEditingIdeaEffort(""); // Clear editing effort
-        setEditingIdeaImpact(""); // Clear editing impact
+        setEditingIdeaEffort("");
+        setEditingIdeaImpact("");
         toast.success("Idea Updated", {
           description: "Your idea has been updated.",
         });
@@ -211,12 +219,13 @@ export default function IdeasPage() {
           const newGoal = await addGoal({
             title: idea.content.substring(0, 100), // Take first 100 chars as title
             shortDescription: idea.content.substring(0, 150), // Take first 150 chars as short description
-            description: `<p>${idea.content}</p>`, // Use full content as detailed description
+            // Removed 'description' field as per previous request
             targetDate: format(addDays(new Date(), 30), "yyyy-MM-dd"), // Default to 30 days from now
             priority: "medium",
             status: "active",
             progress: 0,
             icon: "Lightbulb", // Default icon for converted ideas
+            // Removed 'journalEntries' field as per previous request
           });
 
           // Mark the idea as converted and link it to the new goal
@@ -317,15 +326,18 @@ export default function IdeasPage() {
       </p>
 
       {/* Add New Idea Form */}
-      <Card className="p-6 space-y-4">
-        <CardTitle className="text-xl">Add a New Idea</CardTitle>
-        <form onSubmit={handleAddIdea} className="flex flex-col gap-3">
+      <Card className="p-6 space-y-4 border-2 border-primary/50 shadow-lg">
+        <CardTitle className="text-2xl flex items-center gap-2">
+          <PlusCircle className="h-6 w-6 text-primary" /> Add a New Idea
+        </CardTitle>
+        <form onSubmit={handleAddIdea} className="flex flex-col gap-4">
           <Textarea
             placeholder="What's your big idea? Jot it down here..."
             value={newIdeaContent}
             onChange={(e) => setNewIdeaContent(e.target.value)}
-            rows={3}
+            rows={4}
             disabled={isAddingIdea}
+            className="text-base"
           />
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-2">
@@ -367,28 +379,41 @@ export default function IdeasPage() {
               </Select>
             </div>
           </div>
-          <Button
-            type="submit"
-            disabled={isAddingIdea || !newIdeaContent.trim()}
-            className="w-full sm:w-auto self-end cursor-pointer"
-          >
-            {isAddingIdea ? (
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            ) : (
-              <PlusCircle className="mr-2 h-4 w-4" />
-            )}
-            Add Idea
-          </Button>
+          <div className="flex justify-end gap-2 mt-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleClearNewIdeaForm}
+              disabled={isAddingIdea}
+              className="cursor-pointer"
+            >
+              Clear Form
+            </Button>
+            <Button
+              type="submit"
+              disabled={isAddingIdea || !newIdeaContent.trim()}
+              className="cursor-pointer"
+            >
+              {isAddingIdea ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <PlusCircle className="mr-2 h-4 w-4" />
+              )}
+              Add Idea
+            </Button>
+          </div>
         </form>
       </Card>
 
       {/* List Existing Ideas */}
       <h2 className="text-2xl font-bold tracking-tight pt-4">All Ideas</h2>
       {ideas.length === 0 ? (
-        <div className="p-8 border-2 border-dashed rounded-lg text-center text-muted-foreground flex flex-col items-center justify-center space-y-4">
-          <Lightbulb className="h-16 w-16 text-primary/60" />
-          <h3 className="text-xl font-semibold">No Ideas Captured Yet</h3>
-          <p>Start by adding your first idea above!</p>
+        <div className="p-8 border-2 border-dashed rounded-lg text-center text-muted-foreground flex flex-col items-center justify-center space-y-4 bg-background/50">
+          <Lightbulb className="h-16 w-16 text-primary/60 animate-pulse" />
+          <h3 className="text-xl font-semibold">No Ideas Captured Yet!</h3>
+          <p className="text-lg">
+            Start by adding your first brilliant idea using the form above.
+          </p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -399,6 +424,23 @@ export default function IdeasPage() {
                 idea.isConverted ? "opacity-70 border-dashed" : ""
               }`}
             >
+              <CardHeader className="p-0 pb-3 flex flex-row items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Lightbulb className="h-5 w-5 text-primary flex-shrink-0" />
+                  <CardTitle className="text-lg font-semibold line-clamp-1">
+                    {idea.content.substring(0, 50)}
+                    {idea.content.length > 50 ? "..." : ""}
+                  </CardTitle>
+                </div>
+                {idea.isConverted && (
+                  <Badge
+                    variant="success"
+                    className="flex items-center gap-1 text-xs"
+                  >
+                    <CheckCircle2 className="h-3 w-3" /> Converted
+                  </Badge>
+                )}
+              </CardHeader>
               <CardContent className="flex-1 p-0">
                 {editingIdeaId === idea.id ? (
                   <div className="space-y-3">
@@ -407,6 +449,7 @@ export default function IdeasPage() {
                       onChange={(e) => setEditingIdeaContent(e.target.value)}
                       rows={3}
                       disabled={isUpdatingIdea}
+                      className="text-base"
                     />
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-3">
                       <div className="space-y-2">
@@ -482,16 +525,18 @@ export default function IdeasPage() {
                   </div>
                 ) : (
                   <div className="space-y-2">
-                    <p className="text-foreground text-base">{idea.content}</p>
+                    <p className="text-foreground text-base line-clamp-3">
+                      {idea.content}
+                    </p>
                     <div className="flex flex-wrap gap-2 mt-2">
                       {renderEffortBadge(idea.effort)}
                       {renderImpactBadge(idea.impact)}
                     </div>
-                    <p className="text-sm text-muted-foreground text-right">
+                    <p className="text-sm text-muted-foreground text-right mt-2">
                       Added: {format(new Date(idea.createdAt), "PPP HH:mm")}
                     </p>
                     {idea.isConverted && idea.convertedGoalId && (
-                      <p className="text-sm text-green-600 dark:text-green-400 flex items-center gap-1">
+                      <p className="text-sm text-green-600 dark:text-green-400 flex items-center gap-1 mt-1">
                         <CheckCircle className="h-4 w-4" /> Converted to Goal:{" "}
                         <Link
                           href={`/goals/${idea.convertedGoalId}`}
